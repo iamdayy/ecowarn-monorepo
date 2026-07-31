@@ -1,0 +1,17 @@
+{
+  "name": "ecowarn-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=api",
+    "dev:mobile": "npm run start --workspace=mobile",
+    "dev:all": "npx concurrently \"npm run dev:api\" \"npm run dev:mobile\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
