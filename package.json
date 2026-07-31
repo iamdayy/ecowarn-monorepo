@@ -7,9 +7,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:api": "npm run dev --workspace=api",
-    "dev:mobile": "npm run start --workspace=mobile",
-    "dev:all": "npx concurrently \"npm run dev:api\" \"npm run dev:mobile\""
+    "dev:api": "bun run dev --workspace=api",
+    "dev:mobile": "bun run start --workspace=mobile",
+    "dev:all": "bunx concurrently \"bun run dev:api\" \"bun run dev:mobile\""
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

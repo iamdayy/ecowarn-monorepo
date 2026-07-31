@@ -1,4 +1,6 @@
 import dotenv from 'dotenv';
+dotenv.config();
+
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
@@ -6,7 +8,6 @@ import { connectDatabase } from './config/database';
 import { initSocket } from './config/socket';
 import reportRoutes from './routes/reportRoutes';
 
-dotenv.config();
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
 const app: Application = express();

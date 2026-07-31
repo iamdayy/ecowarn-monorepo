@@ -1,0 +1,26 @@
+export type TrashVolumeStatus = 'Ringan' | 'Sedang' | 'Kritis';
+
+export interface BoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface TrashDetectionResult {
+  boundingBox: BoundingBox;
+  ratio: number;
+  severity: TrashVolumeStatus;
+  timestamp: number;
+}
+
+export interface SpatialCoordinates {
+  latitude: number;
+  longitude: number;
+}
+
+export interface ReportPayload {
+  latitude: number;
+  longitude: number;
+  severity: TrashVolumeStatus;
+}
