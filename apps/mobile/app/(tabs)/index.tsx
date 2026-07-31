@@ -1,50 +1,91 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import * as Location from 'expo-location';
 import { InteractiveMap, MapReportItem } from '../../components/ecowarn/InteractiveMap';
 import { SpatialCoordinates } from '../../types/ecowarn';
+import { fetchNearbyReports, ServerReportResponse } from '../../services/apiService';
+import {
+  connectRealtimeEngine,
+  disconnectRealtimeEngine,
+  CriticalZoneAlertPayload,
+} from '../../services/socketService';
 
 export default function HomeScreen() {
   const [userLocation, setUserLocation] = useState<SpatialCoordinates>({
     latitude: -6.200000, // Default: Jakarta
     longitude: 106.816666,
   });
-  const [activeReports, setActiveReports] = useState<MapReportItem[]>([
-    {
-      id: 'dummy-1',
-      latitude: -6.205,
-      longitude: 106.82,
-      severity: 'Kritis',
-    },
-    {
-      id: 'dummy-2',
-      latitude: -6.195,
-      longitude: 106.81,
-      severity: 'Sedang',
-    },
-  ]);
+  const [activeReports, setActiveReports] = useState<MapReportItem[]>([]);
+
+  const formatServerReportToMapItem = (report: ServerReportResponse): MapReportItem => ({
+    id: report._id,
+    longitude: report.location.coordinates[0],
+    latitude: report.location.coordinates[1],
+    severity: report.severity,
+    createdAt: report.createdAt,
+  });
+
+  const loadReportsFromServer = useCallback(async (latitude: number, longitude: number) => {
+    try {
+      const serverReports = await fetchNearbyReports(latitude, longitude);
+      const formatted = serverReports.map(formatServerReportToMapItem);
+      setActiveReports(formatted);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[Error Load Reports] Gagal memperbarui data laporan pemantauan dari peladen: ${errorMessage}`);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchUserLocation = async () => {
+    const initLocationAndFetch = async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert('Izin Ditolak', 'Izin lokasi dibutuhkan untuk menampilkan peta peringatan dini.');
-          return;
+        let lat = userLocation.latitude;
+        let lng = userLocation.longitude;
+
+        if (status === 'granted') {
+          const location = await Location.getCurrentPositionAsync({});
+          lat = location.coords.latitude;
+          lng = location.coords.longitude;
+          setUserLocation({ latitude: lat, longitude: lng });
+        } else {
+          Alert.alert('Izin Ditolak', 'Menggunakan koordinat default (Jakarta) untuk memuat peta.');
         }
 
-        const location = await Location.getCurrentPositionAsync({});
-        setUserLocation({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        });
+        await loadReportsFromServer(lat, lng);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`[Error Location] Gagal mengambil lokasi terkini: ${errorMessage}`);
+        console.error(`[Error Location Init] Gagal memuat lokasi atau laporan: ${errorMessage}`);
+        // Fallback memuat laporan di lokasi default jika GPS gagal
+        await loadReportsFromServer(userLocation.latitude, userLocation.longitude);
       }
     };
 
-    fetchUserLocation();
+    initLocationAndFetch();
+  }, [loadReportsFromServer, userLocation.latitude, userLocation.longitude]);
+
+  // Integrasi Real-Time Engine (Socket.io)
+  useEffect(() => {
+    const handleCriticalAlert = (payload: CriticalZoneAlertPayload) => {
+      Alert.alert(
+        '🚨 PERINGATAN DINI BAHAYA KRITIS!',
+        `${payload.message}\nTerdeteksi krisis volume sampah pada zona ${payload.impactedRadiusMeters / 1000}km dari titik fokus.\nSegera tingkatkan kewaspadaan!`
+      );
+    };
+
+    const handleNewReport = (newServerReport: ServerReportResponse) => {
+      const newMapItem = formatServerReportToMapItem(newServerReport);
+      setActiveReports((prevReports) => [
+        newMapItem,
+        ...prevReports.filter((item) => item.id !== newMapItem.id),
+      ]);
+    };
+
+    connectRealtimeEngine(handleCriticalAlert, handleNewReport);
+
+    return () => {
+      disconnectRealtimeEngine();
+    };
   }, []);
 
   return (

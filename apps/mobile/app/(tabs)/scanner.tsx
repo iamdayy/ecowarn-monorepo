@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import { ScannerCameraPanel } from '../../components/ecowarn/ScannerCameraPanel';
 import { ReportPayload, SpatialCoordinates } from '../../types/ecowarn';
+import { sendReportToServer } from '../../services/apiService';
 
 export default function ScannerScreen() {
   const [userLocation, setUserLocation] = useState<SpatialCoordinates>({
@@ -28,8 +29,9 @@ export default function ScannerScreen() {
 
   const handleSendReport = useCallback(async (payload: ReportPayload) => {
     try {
-      // API request akan diatur penuh pada Fase 4 (End-to-End Integration)
-      console.log('[Payload Terkirim]', JSON.stringify(payload));
+      console.log('[Mengirim Payload]', JSON.stringify(payload));
+      const serverResponse = await sendReportToServer(payload);
+      console.log('[Respon Server Sukses]', serverResponse);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[Error Scanner Send] Gagal memproses pengiriman ke server: ${errorMessage}`);
