@@ -7,6 +7,7 @@ import { createServer } from 'http';
 import { connectDatabase } from './config/database';
 import { initSocket } from './config/socket';
 import reportRoutes from './routes/reportRoutes';
+import authRoutes from './routes/authRoutes';
 
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
@@ -21,6 +22,7 @@ app.use(cors());
 app.use(express.json());
 
 // Rute utama API
+app.use('/api/auth', authRoutes);
 app.use('/api', reportRoutes);
 
 // Health Check Endpoint

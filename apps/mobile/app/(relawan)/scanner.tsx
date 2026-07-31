@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import * as Location from 'expo-location';
 import { ScannerCameraPanel } from '../../components/ecowarn/ScannerCameraPanel';
 import { ReportPayload, SpatialCoordinates } from '../../types/ecowarn';
 import { sendReportToServer } from '../../services/apiService';
+import { useAuth } from '../../context/AuthContext';
 
-export default function ScannerScreen() {
+export default function RelawanScannerScreen() {
+  const { token } = useAuth();
   const [userLocation, setUserLocation] = useState<SpatialCoordinates>({
     latitude: -6.200000,
     longitude: 106.816666,
@@ -29,15 +31,24 @@ export default function ScannerScreen() {
 
   const handleSendReport = useCallback(async (payload: ReportPayload) => {
     try {
-      console.log('[Mengirim Payload]', JSON.stringify(payload));
-      const serverResponse = await sendReportToServer(payload);
-      console.log('[Respon Server Sukses]', serverResponse);
+      if (!token) {
+        Alert.alert('Otorisasi Gagal', 'Sesi login Anda tidak ditemukan. Silakan re-login.');
+        return;
+      }
+      console.log('[Mengirim Payload Relawan]', JSON.stringify(payload));
+      const serverResponse = await sendReportToServer(payload, token);
+      console.log('[Respon Server Sukses - Terotorisasi RBAC]', serverResponse);
+      Alert.alert(
+        'Laporan Berhasil Diluncurkan! 🛡️',
+        `Data klasifikasi AI (${payload.severity}) pada koordinat Anda telah dicatat oleh peladen terautentikasi ID Relawan Anda.`
+      );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[Error Scanner Send] Gagal memproses pengiriman ke server: ${errorMessage}`);
+      console.error(`[Error Scanner Send] Gagal memproses pengiriman terotorisasi ke server: ${errorMessage}`);
+      Alert.alert('Pengiriman Gagal', `Terjadi kendala pada pengiriman: ${errorMessage}`);
       throw error;
     }
-  }, []);
+  }, [token]);
 
   return (
     <View style={styles.container}>

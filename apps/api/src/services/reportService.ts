@@ -6,6 +6,7 @@ const DEFAULT_MAX_DISTANCE_METERS = 25000; // 25 km default radius filter
 const EVENT_NEW_REPORT = 'NEW_REPORT';
 
 export interface CreateReportPayload {
+  reporterId: string;
   longitude: number;
   latitude: number;
   severity: TrashVolumeStatus;
@@ -19,9 +20,10 @@ export interface SpatialQueryFilter {
 
 export const createReportService = async (payload: CreateReportPayload): Promise<IReport> => {
   try {
-    const { longitude, latitude, severity } = payload;
+    const { reporterId, longitude, latitude, severity } = payload;
 
     const newReport = await Report.create({
+      reporterId,
       location: {
         type: 'Point',
         coordinates: [longitude, latitude],
@@ -78,3 +80,17 @@ export const getReportsService = async (filter: SpatialQueryFilter): Promise<IRe
     throw new Error(`Gagal mengambil data laporan: ${errorMessage}`);
   }
 };
+
+/**
+ * Mengambil riwayat laporan yang dikerjakan dan diinfeksi AI oleh akun Relawan terpilih
+ */
+export const getReportsByReporterService = async (reporterId: string): Promise<IReport[]> => {
+  try {
+    return await Report.find({ reporterId }).sort({ createdAt: -1 }).limit(100);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[Error Service - getReportsByReporterService] Gagal memproses pencarian riwayat relawan: ${errorMessage}`);
+    throw new Error(`Gagal mengambil riwayat laporan relawan: ${errorMessage}`);
+  }
+};
+

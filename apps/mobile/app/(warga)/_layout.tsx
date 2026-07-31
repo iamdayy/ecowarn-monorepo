@@ -6,7 +6,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export default function TabLayout() {
+export default function WargaLayout() {
   const colorScheme = useColorScheme();
 
   return (
@@ -24,16 +24,17 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="scanner"
+        name="alerts"
         options={{
-          title: 'Pemindai AI',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="camera.fill" color={color} />,
+          title: 'Peringatan Dini',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="exclamationmark.triangle.fill" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="profile"
         options={{
-          href: null,
+          title: 'Profil Warga',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
         }}
       />
     </Tabs>

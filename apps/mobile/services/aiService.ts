@@ -5,7 +5,7 @@ const MODEL_FILE_NAME = 'ecowarn_trash_detector';
 export const useTrashDetectorModel = () => {
   try {
     // Memuat model object detection untuk eksekusi Client-Side Inference
-    const plugin = useTensorflowModel(require('../assets/ecowarn_trash_detector.tflite'));
+    const plugin = useTensorflowModel(require('../assets/ecowarn_trash_detector.tflite'), []);
     return plugin;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

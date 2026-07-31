@@ -3,6 +3,7 @@ import { Schema, model, Document } from 'mongoose';
 export type TrashVolumeStatus = 'Ringan' | 'Sedang' | 'Kritis';
 
 export interface IReport extends Document {
+  reporterId: Schema.Types.ObjectId;
   location: {
     type: 'Point';
     coordinates: [number, number]; // [longitude, latitude]
@@ -14,6 +15,12 @@ export interface IReport extends Document {
 
 const reportSchema = new Schema<IReport>(
   {
+    reporterId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'Identitas relawan pengirim laporan (reporterId) wajib disematkan'],
+      index: true,
+    },
     location: {
       type: {
         type: String,

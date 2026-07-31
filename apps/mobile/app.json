@@ -9,9 +9,15 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.mobile"
     },
     "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyAer05QheuYmseHdAtQzGfKDocl00Kz8l0"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -28,6 +34,12 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "EcoWarn membutuhkan akses kamera untuk mendeteksi tumpukan sampah dan tingkat keparahan (AI Client-Side Inference)."
+        }
+      ],
       [
         "expo-splash-screen",
         {

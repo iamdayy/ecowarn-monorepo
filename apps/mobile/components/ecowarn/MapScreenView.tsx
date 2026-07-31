@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import * as Location from 'expo-location';
-import { InteractiveMap, MapReportItem } from '../../components/ecowarn/InteractiveMap';
+import { InteractiveMap, MapReportItem } from './InteractiveMap';
 import { SpatialCoordinates } from '../../types/ecowarn';
 import { fetchNearbyReports, ServerReportResponse } from '../../services/apiService';
 import {
@@ -10,7 +10,7 @@ import {
   CriticalZoneAlertPayload,
 } from '../../services/socketService';
 
-export default function HomeScreen() {
+export const MapScreenView: React.FC = () => {
   const [userLocation, setUserLocation] = useState<SpatialCoordinates>({
     latitude: -6.200000, // Default: Jakarta
     longitude: 106.816666,
@@ -56,7 +56,6 @@ export default function HomeScreen() {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`[Error Location Init] Gagal memuat lokasi atau laporan: ${errorMessage}`);
-        // Fallback memuat laporan di lokasi default jika GPS gagal
         await loadReportsFromServer(userLocation.latitude, userLocation.longitude);
       }
     };
@@ -93,7 +92,7 @@ export default function HomeScreen() {
       <InteractiveMap userLocation={userLocation} reports={activeReports} />
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createReportService, getReportsService, CreateReportPayload } from '../services/reportService';
+import { createReportService, getReportsService, getReportsByReporterService, CreateReportPayload } from '../services/reportService';
 
 export const createReport = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -13,7 +13,16 @@ export const createReport = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    if (!req.user || !req.user.userId) {
+      res.status(401).json({
+        success: false,
+        message: 'Tidak terotentikasi. Identitas relawan pengirim pesan tidak dapat diproses dari token.',
+      });
+      return;
+    }
+
     const report = await createReportService({
+      reporterId: req.user.userId,
       longitude: Number(longitude),
       latitude: Number(latitude),
       severity,
@@ -62,3 +71,32 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
     });
   }
 };
+
+export const getReporterHistory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user || !req.user.userId) {
+      res.status(401).json({
+        success: false,
+        message: 'Tidak terotentikasi. Token tidak menyimpan identitas pengguna.',
+      });
+      return;
+    }
+
+    const reports = await getReportsByReporterService(req.user.userId);
+
+    res.status(200).json({
+      success: true,
+      count: reports.length,
+      data: reports,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[Error Controller - getReporterHistory] Gagal memvalidasi atau memproses request GET /api/reports/history: ${errorMessage}`);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi galat internal pada peladen saat mengambil riwayat laporan relawan.',
+      error: errorMessage,
+    });
+  }
+};
+

@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
-import { ServerReportResponse } from './apiService';
+import { ServerReportResponse, getBaseServerUrl } from './apiService';
 
-const SOCKET_SERVER_URL = process.env.EXPO_PUBLIC_SOCKET_URL || 'http://10.0.2.2:5000';
+const SOCKET_SERVER_URL = process.env.EXPO_PUBLIC_SOCKET_URL || getBaseServerUrl();
 const EVENT_CRITICAL_ZONE_ALERT = 'CRITICAL_ZONE_ALERT';
 const EVENT_NEW_REPORT = 'NEW_REPORT';
 
