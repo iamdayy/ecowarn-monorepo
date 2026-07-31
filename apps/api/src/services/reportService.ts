@@ -1,4 +1,5 @@
 import { Report, IReport, TrashVolumeStatus } from '../models/ReportSchema';
+import { broadcastCriticalAlert } from './alertService';
 
 export interface CreateReportPayload {
   longitude: number;
@@ -17,6 +18,10 @@ export const createReportService = async (payload: CreateReportPayload): Promise
       },
       severity,
     });
+
+    if (severity === 'Kritis') {
+      await broadcastCriticalAlert(newReport);
+    }
 
     return newReport;
   } catch (error) {
