@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
-import { Camera, useCameraDevice, useFrameProcessor, runAtTargetFps, Frame } from 'react-native-vision-camera';
+import { Camera, useCameraDevice, useCameraFormat, useFrameProcessor, runAtTargetFps, Frame } from 'react-native-vision-camera';
 import { Worklets } from 'react-native-worklets-core';
 import { NitroModules } from 'react-native-nitro-modules';
 import { useResizePlugin } from 'vision-camera-resize-plugin';
@@ -11,7 +11,12 @@ import { ScannerHUDOverlay } from './ScannerHUDOverlay';
 import { ScannerActionFooter } from './ScannerActionFooter';
 import { UnauthorizedCameraView } from './UnauthorizedCameraView';
 
-const TARGET_INFERENCE_FPS = 8; // Optimal untuk pemrosesan AI mobile yang lancar tanpa membebani CPU (tanpa lag/patah-patah)
+// Turunkan FPS inferensi agar worklet thread tidak membebani UI thread
+// 3 FPS cukup responsif untuk deteksi statis (sampah tidak bergerak cepat)
+const TARGET_INFERENCE_FPS = 3;
+
+// Confidence threshold minimal untuk dianggap sebagai deteksi valid
+const CONFIDENCE_THRESHOLD = 0.25;
 
 interface ScannerCameraPanelProps {
   currentLocation: SpatialCoordinates;
@@ -23,11 +28,21 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   onSendReport,
 }) => {
   const device = useCameraDevice('back');
+
+  // Kunci format kamera ke 720p/30fps agar GPU tidak memproses resolusi berlebihan
+  const format = useCameraFormat(device, [
+    { videoResolution: { width: 1280, height: 720 } },
+    { fps: 30 },
+  ]);
+
   const [hasPermission, setHasPermission] = useState<boolean>(false);
   const [detectedSeverity, setDetectedSeverity] = useState<TrashVolumeStatus>('Ringan');
   const [currentRatio, setCurrentRatio] = useState<number>(0.0);
   const [isReporting, setIsReporting] = useState<boolean>(false);
   const { resize } = useResizePlugin();
+
+  // Ref untuk menyimpan state deteksi terakhir → menghindari re-render jika severity tidak berubah
+  const lastSeverityRef = useRef<TrashVolumeStatus>('Ringan');
 
   // Memuat model TFLite untuk Client-Side Inference
   const { model } = useTrashDetectorModel();
@@ -87,9 +102,19 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   }, []);
 
   // Membuat jembatan eksekusi JS yang aman tanpa konflik thread dari dalam Worklet
+  // Hanya update React state jika severity BERUBAH → menghindari re-render sia-sia
   const updateDetectionResult = Worklets.createRunOnJS((ratio: number, severity: TrashVolumeStatus) => {
-    setCurrentRatio(ratio);
-    setDetectedSeverity(severity);
+    if (severity !== lastSeverityRef.current) {
+      lastSeverityRef.current = severity;
+      setDetectedSeverity(severity);
+    }
+    // Ratio hanya diupdate jika berubah cukup signifikan (> 2% perbedaan) untuk menghindari micro-render
+    setCurrentRatio((prevRatio) => {
+      if (Math.abs(prevRatio - ratio) > 0.02) {
+        return ratio;
+      }
+      return prevRatio;
+    });
   });
 
   // Bridge log ke JS thread untuk menghindari galat NamelessError/Reflect.construct saat Babel mencetak eksepsi native
@@ -141,8 +166,10 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
             let maxScore = 0.0;
             let bestWidth = 0.0;
             let bestHeight = 0.0;
+            let foundAboveThreshold = false;
 
-            // Pindai setiap kandidat bounding box dan periksa skor keyakinan dari semua kelas (indeks 4 ke atas)
+            // Optimasi: early-exit scan - cari skor tertinggi tapi langsung break
+            // jika sudah menemukan deteksi di atas threshold yang cukup tinggi
             for (let i = 0; i < numCandidates; i++) {
               for (let c = 4; c < numAttributes; c++) {
                 const scoreIndex = isTransposed ? c * numCandidates + i : i * numAttributes + c;
@@ -153,22 +180,25 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
                   const hIdx = isTransposed ? 3 * numCandidates + i : i * numAttributes + 3;
                   bestWidth = outputMatrix[wIdx]!;
                   bestHeight = outputMatrix[hIdx]!;
+                  // Jika score sudah sangat tinggi (>0.7), tidak perlu scan lebih lanjut
+                  if (score > 0.7) {
+                    foundAboveThreshold = true;
+                  }
                 }
               }
+              if (foundAboveThreshold) break;
             }
 
             // Standarisasi dimensi box apakah dalam bentuk piksel (0..640) atau normalisasi (0..1)
             const boxWidthPx = bestWidth > 1.0 ? (bestWidth / inputConfig.width) * frame.width : bestWidth * frame.width;
             const boxHeightPx = bestHeight > 1.0 ? (bestHeight / inputConfig.height) * frame.height : bestHeight * frame.height;
 
-            // Cetak statistik ke JS thread sesekali (~5% sampel frame) untuk mencegah banjir log yang memicu lag
-            if (Math.random() < 0.05) {
+            // Cetak statistik ke JS thread sesekali (~3% sampel frame) untuk mencegah banjir log yang memicu lag
+            if (Math.random() < 0.03) {
               logDetectionStats(maxScore, boxWidthPx, boxHeightPx, isTransposed, outputMatrix.length);
             }
 
-            // Ambang batas (Threshold) presisi optimal untuk kamera mobile: 18% (0.18)
-            // Memisahkan noise latar belakang (<0.07) dengan deteksi objek sampah nyata (~0.21 - 0.25+)
-            if (maxScore >= 0.25) {
+            if (maxScore >= CONFIDENCE_THRESHOLD) {
               const ratio = calculateBoundingBoxRatio(boxWidthPx, boxHeightPx, frame.width, frame.height);
               const severity = determineSeverityStatus(ratio);
               updateDetectionResult(ratio, severity);
@@ -227,7 +257,11 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
         style={StyleSheet.absoluteFill}
         device={device}
         isActive={true}
+        format={format}
+        fps={30}
+        pixelFormat="yuv"
         frameProcessor={frameProcessor}
+        enableBufferCompression={true}
       />
       <ScannerHUDOverlay
         severity={detectedSeverity}
