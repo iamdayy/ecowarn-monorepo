@@ -13,6 +13,7 @@ export const calculateBoundingBoxRatio = (
   frameWidth: number,
   frameHeight: number
 ): number => {
+  'worklet';
   try {
     if (frameWidth <= 0 || frameHeight <= 0) return 0;
 
@@ -33,6 +34,7 @@ export const calculateBoundingBoxRatio = (
  * Menentukan klasifikasi keparahan sampah berdasarkan nilai rasio luas area
  */
 export const determineSeverityStatus = (ratio: number): TrashVolumeStatus => {
+  'worklet';
   if (ratio >= RATIO_THRESHOLD_CRITICAL) {
     return 'Kritis';
   } else if (ratio >= RATIO_THRESHOLD_MEDIUM) {

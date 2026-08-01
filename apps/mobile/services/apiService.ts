@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { ReportPayload } from '../types/ecowarn';
 
 /**
@@ -8,12 +9,19 @@ export const getBaseServerUrl = (): string => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL.replace('/api', '');
   }
-  const hostUri = Constants.expoConfig?.hostUri;
+  const hostUri = Constants.expoConfig?.hostUri || (Constants as any).manifest2?.extra?.expoGo?.debuggerHost || (Constants as any).manifest?.debuggerHost;
   if (hostUri) {
     const hostIp = hostUri.split(':')[0];
     return `http://${hostIp}:5000`;
   }
-  return 'http://10.0.2.2:5000';
+  // Fallback sesuai dengan OS yang menjalankan klien (Android Emulator vs iOS/Web/Local)
+  return Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://127.0.0.1:5000';
+};
+
+export const getApiUrl = (path: string): string => {
+  const base = getBaseServerUrl();
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${base}/api${normalizedPath}`;
 };
 
 export const API_BASE_URL = `${getBaseServerUrl()}/api`;

@@ -8,8 +8,8 @@
   ],
   "scripts": {
     "dev:api": "bun run dev --workspace=api",
-    "dev:mobile": "bun run start --workspace=mobile",
-    "dev:all": "bunx concurrently \"bun run dev:api\" \"bun run dev:mobile\""
+    "dev:mobile": "adb reverse tcp:5000 tcp:5000 2>/dev/null || true; bun run start --workspace=mobile",
+    "dev:all": "adb reverse tcp:5000 tcp:5000 2>/dev/null || true; bunx concurrently \"bun run dev:api\" \"bun run dev:mobile\""
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

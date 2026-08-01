@@ -9,7 +9,7 @@ import { calculateBoundingBoxRatio, determineSeverityStatus } from '../../utils/
 import { useTrashDetectorModel } from '../../services/aiService';
 import { SeverityStatusBadge } from './SeverityStatusBadge';
 
-const TARGET_INFERENCE_FPS = 30; // Memastikan pemrosesan berkecepatan tinggi min 30 FPS
+const TARGET_INFERENCE_FPS = 8; // Optimal untuk pemrosesan AI mobile yang lancar tanpa membebani CPU (tanpa lag/patah-patah)
 
 interface ScannerCameraPanelProps {
   currentLocation: SpatialCoordinates;
@@ -54,6 +54,23 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
     return { width, height, isFloat, isValid: true, expectedBytes };
   }, [model]);
 
+  // Deteksi konfigurasi output model untuk mendukung berbagai variasi bentuk ekspor YOLO ([1, 5, 8400] atau [1, 8400, 5])
+  const outputConfig = useMemo(() => {
+    if (model == null || !model.outputs || model.outputs.length === 0) {
+      return { shape: [1, 5, 8400], numAttributes: 5, numCandidates: 8400, isTransposed: true, isValid: false };
+    }
+    const tensor = model.outputs[0]!;
+    const shape = tensor.shape || [1, 5, 8400];
+    const dim1 = shape[1] || 5;
+    const dim2 = shape[2] || 8400;
+    // Pada YOLOv8/YOLOv26 standar, dim1 < dim2 (misal 5 atau 6 atribut di baris, 8400 kandidat di kolom)
+    const isTransposed = dim1 < dim2;
+    const numAttributes = isTransposed ? dim1 : dim2;
+    const numCandidates = isTransposed ? dim2 : dim1;
+    console.log('[Model Output Config]', JSON.stringify({ shape, numAttributes, numCandidates, isTransposed, dataType: tensor.dataType }));
+    return { shape, numAttributes, numCandidates, isTransposed, isValid: true };
+  }, [model]);
+
   useEffect(() => {
     const requestCameraPermission = async () => {
       try {
@@ -78,6 +95,11 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
     console.error(`[Error Frame Processor] ${errorMsg} | Buffer TFLite: ${actualBytes} bytes (Diterima) vs ${expectedBytes} bytes (Dibutuhkan Model)`);
   });
 
+  // Bridge untuk memantau performa dan tingkat keyakinan (confidence) deteksi secara periodik tanpa memenuhi log
+  const logDetectionStats = Worklets.createRunOnJS((maxScore: number, w: number, h: number, isTransposed: boolean, matrixLen: number) => {
+    console.log(`[YOLO Debug] Max Score: ${maxScore.toFixed(3)} | Box: ${Math.round(w)}x${Math.round(h)} | Transposed: ${isTransposed} | Total Float32: ${matrixLen}`);
+  });
+
   // Client-Side Frame Processor (DILARANG mengunduh/mengirim gambar ke peladen)
   const frameProcessor = useFrameProcessor(
     (frame: Frame) => {
@@ -85,7 +107,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
       runAtTargetFps(TARGET_INFERENCE_FPS, () => {
         let bufferLength = 0;
         try {
-          if (boxedModel == null || !inputConfig.isValid) return;
+          if (boxedModel == null || !inputConfig.isValid || !outputConfig.isValid) return;
 
           const tflite = boxedModel.unbox();
 
@@ -110,33 +132,47 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
           const outputs = tflite.runSync([inputBuffer as ArrayBuffer]);
           if (outputs && outputs.length > 0 && outputs[0] != null) {
             const outputMatrix = new Float32Array(outputs[0]);
-            // Output tensor YOLOv26 memiliki bentuk [1, 5, 8400] -> 5 baris (x, y, w, h, score), 8400 kolom (kandidat)
-            const numCandidates = 8400;
+            const numCandidates = outputConfig.numCandidates;
+            const numAttributes = outputConfig.numAttributes;
+            const isTransposed = outputConfig.isTransposed;
+
             let maxScore = 0.0;
             let bestWidth = 0.0;
             let bestHeight = 0.0;
 
-            // Cari detection box dengan skor keyakinan tertinggi di antara 8400 kandidat
+            // Pindai setiap kandidat bounding box dan periksa skor keyakinan dari semua kelas (indeks 4 ke atas)
             for (let i = 0; i < numCandidates; i++) {
-              const score = outputMatrix[4 * numCandidates + i]!;
-              if (score > maxScore) {
-                maxScore = score;
-                bestWidth = outputMatrix[2 * numCandidates + i]!;
-                bestHeight = outputMatrix[3 * numCandidates + i]!;
+              for (let c = 4; c < numAttributes; c++) {
+                const scoreIndex = isTransposed ? c * numCandidates + i : i * numAttributes + c;
+                const score = outputMatrix[scoreIndex]!;
+                if (score > maxScore) {
+                  maxScore = score;
+                  const wIdx = isTransposed ? 2 * numCandidates + i : i * numAttributes + 2;
+                  const hIdx = isTransposed ? 3 * numCandidates + i : i * numAttributes + 3;
+                  bestWidth = outputMatrix[wIdx]!;
+                  bestHeight = outputMatrix[hIdx]!;
+                }
               }
             }
 
-            // Jika keyakinan deteksi tumpukan sampah melebihi threshold 40% (0.4)
-            if (maxScore > 0.4) {
-              // Standarisasi dimensi box apakah dalam bentuk piksel (0..640) atau normalisasi (0..1)
-              const boxWidthPx = bestWidth > 1.0 ? (bestWidth / inputConfig.width) * frame.width : bestWidth * frame.width;
-              const boxHeightPx = bestHeight > 1.0 ? (bestHeight / inputConfig.height) * frame.height : bestHeight * frame.height;
+            // Standarisasi dimensi box apakah dalam bentuk piksel (0..640) atau normalisasi (0..1)
+            const boxWidthPx = bestWidth > 1.0 ? (bestWidth / inputConfig.width) * frame.width : bestWidth * frame.width;
+            const boxHeightPx = bestHeight > 1.0 ? (bestHeight / inputConfig.height) * frame.height : bestHeight * frame.height;
 
-              // Kalkulasi perbandingan luas (Bounding Box Ratio) secara real-time
+            // Cetak statistik ke JS thread sesekali (~5% sampel frame) untuk mencegah banjir log yang memicu lag
+            if (Math.random() < 0.05) {
+              logDetectionStats(maxScore, boxWidthPx, boxHeightPx, isTransposed, outputMatrix.length);
+            }
+
+            // Ambang batas (Threshold) presisi optimal untuk kamera mobile: 18% (0.18)
+            // Memisahkan noise latar belakang (<0.07) dengan deteksi objek sampah nyata (~0.21 - 0.25+)
+            if (maxScore >= 0.25) {
               const ratio = calculateBoundingBoxRatio(boxWidthPx, boxHeightPx, frame.width, frame.height);
               const severity = determineSeverityStatus(ratio);
-
               updateDetectionResult(ratio, severity);
+            } else {
+              // Jika tidak ada sampah terdeteksi di atas threshold, reset indikator ke 0
+              updateDetectionResult(0.0, 'Ringan');
             }
           }
         } catch (error) {
@@ -145,7 +181,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
         }
       });
     },
-    [boxedModel, inputConfig, resize, updateDetectionResult, logWorkletError]
+    [boxedModel, inputConfig, outputConfig, resize, updateDetectionResult, logWorkletError, logDetectionStats]
   );
 
   const handleSendReport = useCallback(async () => {

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { AuthRequest } from '../types/authRequest';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ecowarn-super-secret-jwt-key-2026';
 
@@ -12,7 +13,7 @@ interface JwtPayload {
  * Middleware untuk memverifikasi token JWT dari header Authorization (Bearer token)
  * dan menyematkan payload identitas dan peran ke objek request (req.user)
  */
-export const authenticateJWT = (req: Request, res: Response, next: NextFunction): void => {
+export const authenticateJWT = (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -48,7 +49,7 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
  * jika peran pengguna (role) tidak memenuhi syarat yang ditetapkan (misalnya 'Relawan')
  */
 export const authorizeRole = (requiredRole: 'Relawan' | 'Warga') => {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
       if (!req.user) {
         res.status(401).json({

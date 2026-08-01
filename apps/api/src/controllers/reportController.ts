@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../types/authRequest';
 import { createReportService, getReportsService, getReportsByReporterService, CreateReportPayload } from '../services/reportService';
 
-export const createReport = async (req: Request, res: Response): Promise<void> => {
+export const createReport = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { longitude, latitude, severity } = req.body as CreateReportPayload;
 
@@ -72,7 +73,7 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
-export const getReporterHistory = async (req: Request, res: Response): Promise<void> => {
+export const getReporterHistory = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.user || !req.user.userId) {
       res.status(401).json({
