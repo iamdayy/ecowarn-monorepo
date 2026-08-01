@@ -1,7 +1,15 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, LayoutChangeEvent } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TrashVolumeStatus } from '../../types/ecowarn';
+import { TrashVolumeStatus, BoundingBox } from '../../types/ecowarn';
 import { SeverityStatusBadge } from './SeverityStatusBadge';
 import { EcoWarnColors, Spacing } from '../../constants/theme';
 
@@ -9,28 +17,199 @@ interface ScannerHUDOverlayProps {
   severity: TrashVolumeStatus;
   ratio: number;
   isModelLoaded: boolean;
+  boundingBox?: BoundingBox;
 }
+
+const RETICLE_SIZE = 260;
+const CORNER_LENGTH = 40;
+const CORNER_THICKNESS = 3;
 
 /**
  * Head-Up Display overlay untuk layar Scanner AI.
- * Menampilkan: indikator status AI, badge severity, dan reticle viewfinder.
- * Responsif terhadap Safe Area (Notch/Island).
+ * Fitur: Dynamic Bounding Box dari hasil Client-Side Inference AI (TFLite),
+ * animated pulse dot, scan-line vertikal, dan reticle interaktif.
  */
-export const ScannerHUDOverlay: React.FC<ScannerHUDOverlayProps> = ({
+const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
   severity,
   ratio,
   isModelLoaded,
+  boundingBox,
 }) => {
   const insets = useSafeAreaInsets();
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+
+  // === Animasi Pulse Dot (berkedip saat model aktif) ===
+  const pulseOpacity = useSharedValue(1);
+  const pulseScale = useSharedValue(1);
+
+  // === Animasi Scan-Line ===
+  const scanLineY = useSharedValue(0);
+
+  // === Shared Values untuk Bounding Box Tracking Mulus ===
+  const boxLeft = useSharedValue(0);
+  const boxTop = useSharedValue(0);
+  const boxWidth = useSharedValue(0);
+  const boxHeight = useSharedValue(0);
+  const boxOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (isModelLoaded) {
+      pulseOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.3, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        false
+      );
+      pulseScale.value = withRepeat(
+        withSequence(
+          withTiming(1.5, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        false
+      );
+
+      scanLineY.value = withRepeat(
+        withTiming(RETICLE_SIZE - 4, { duration: 2200, easing: Easing.inOut(Easing.quad) }),
+        -1,
+        true
+      );
+    }
+  }, [isModelLoaded]);
+
+  // Handle pergeseran posisi Bounding Box agar transisi mulus antar frame TFLite
+  useEffect(() => {
+    if (boundingBox && containerSize.width > 0 && containerSize.height > 0) {
+      const targetLeft = boundingBox.x * containerSize.width;
+      const targetTop = boundingBox.y * containerSize.height;
+      const targetWidth = boundingBox.width * containerSize.width;
+      const targetHeight = boundingBox.height * containerSize.height;
+
+      // Jika box baru muncul dari hidden (opacity 0), posisikan seketika lalu fade in
+      if (boxOpacity.value === 0) {
+        boxLeft.value = targetLeft;
+        boxTop.value = targetTop;
+        boxWidth.value = targetWidth;
+        boxHeight.value = targetHeight;
+        boxOpacity.value = withTiming(1, { duration: 160 });
+      } else {
+        // Transisi halus mengejar pergerakan objek (smooth target tracking)
+        const duration = 180;
+        const easing = Easing.out(Easing.cubic);
+        boxLeft.value = withTiming(targetLeft, { duration, easing });
+        boxTop.value = withTiming(targetTop, { duration, easing });
+        boxWidth.value = withTiming(targetWidth, { duration, easing });
+        boxHeight.value = withTiming(targetHeight, { duration, easing });
+      }
+    } else {
+      // Fade out begitu objek hilang / di bawah confidence threshold
+      boxOpacity.value = withTiming(0, { duration: 200 });
+    }
+  }, [boundingBox, containerSize]);
+
+  const handleLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (width > 0 && height > 0) {
+      setContainerSize({ width, height });
+    }
+  };
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: pulseOpacity.value,
+    transform: [{ scale: pulseScale.value }],
+  }));
+
+  const scanLineStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: scanLineY.value }],
+  }));
+
+  const animatedBoxStyle = useAnimatedStyle(() => ({
+    left: boxLeft.value,
+    top: boxTop.value,
+    width: boxWidth.value,
+    height: boxHeight.value,
+    opacity: boxOpacity.value,
+  }));
+
+  // Reticle meredup otomatis saat objek sampah terdeteksi dan diapit Bounding Box
+  const reticleStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(boundingBox ? 0.15 : 1, { duration: 250 }),
+  }));
+
+  // Warna aksen berubah dinamis sesuai tingkat keparahan (severity)
+  const reticleColor = useMemo(() => {
+    switch (severity) {
+      case 'Kritis': return EcoWarnColors.critical;
+      case 'Sedang': return EcoWarnColors.warning;
+      default: return 'rgba(255, 255, 255, 0.85)';
+    }
+  }, [severity]);
+
+  const boxColor = useMemo(() => {
+    switch (severity) {
+      case 'Kritis': return EcoWarnColors.critical;
+      case 'Sedang': return EcoWarnColors.warning;
+      default: return EcoWarnColors.safe;
+    }
+  }, [severity]);
+
+  const boxBgColor = useMemo(() => {
+    switch (severity) {
+      case 'Kritis': return 'rgba(239, 68, 68, 0.18)';
+      case 'Sedang': return 'rgba(249, 115, 22, 0.18)';
+      default: return 'rgba(52, 199, 89, 0.18)';
+    }
+  }, [severity]);
+
+  const scanLineColor = useMemo(() => {
+    switch (severity) {
+      case 'Kritis': return 'rgba(239, 68, 68, 0.45)';
+      case 'Sedang': return 'rgba(249, 115, 22, 0.4)';
+      default: return 'rgba(255, 255, 255, 0.3)';
+    }
+  }, [severity]);
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
-      {/* === Header Area: AI Status + Severity Badge === */}
+    <View style={styles.container} onLayout={handleLayout} pointerEvents="box-none">
+      {/* === Dynamic AI Bounding Box Overlay === */}
+      <Animated.View
+        style={[
+          styles.boundingBoxContainer,
+          animatedBoxStyle,
+          { borderColor: boxColor, backgroundColor: boxBgColor },
+        ]}
+        pointerEvents="none"
+      >
+        {/* Aksen sudut Bounding Box bergaya futuristik */}
+        <View style={[styles.boxCorner, styles.boxCornerTL, { borderColor: boxColor }]} />
+        <View style={[styles.boxCorner, styles.boxCornerTR, { borderColor: boxColor }]} />
+        <View style={[styles.boxCorner, styles.boxCornerBL, { borderColor: boxColor }]} />
+        <View style={[styles.boxCorner, styles.boxCornerBR, { borderColor: boxColor }]} />
+
+        {/* Label Indikator AI (Tingkat Keparahan & % Area) */}
+        <View style={[styles.boxLabel, { backgroundColor: boxColor }]}>
+          <Text style={styles.boxLabelText}>
+            {`🗑️ ${severity.toUpperCase()} · ${(ratio * 100).toFixed(0)}% AREA`}
+          </Text>
+        </View>
+      </Animated.View>
+
+      {/* === Header: AI Status Chip + Severity Badge === */}
       <View style={[styles.topSection, { paddingTop: insets.top + Spacing.sm }]}>
         <View style={styles.aiChip}>
-          <View style={[styles.pulseDot, !isModelLoaded && styles.pulseDotInactive]} />
+          <Animated.View
+            style={[
+              styles.pulseDot,
+              isModelLoaded
+                ? { backgroundColor: EcoWarnColors.safe }
+                : { backgroundColor: EcoWarnColors.textDisabled },
+              isModelLoaded && pulseStyle,
+            ]}
+          />
           <Text style={styles.aiChipText}>
-            {isModelLoaded ? 'TFLITE ACTIVE' : 'MODEL LOADING...'}
+            {isModelLoaded ? 'ECOWARN AI AKTIF' : 'MEMUAT MODEL...'}
           </Text>
         </View>
         <View style={styles.badgeWrapper}>
@@ -38,24 +217,31 @@ export const ScannerHUDOverlay: React.FC<ScannerHUDOverlayProps> = ({
         </View>
       </View>
 
-      {/* === Center Area: Viewfinder Reticle === */}
-      <View style={styles.reticleContainer} pointerEvents="none">
+      {/* === Center: Viewfinder Reticle + Animated Scan Line === */}
+      <Animated.View style={[styles.reticleContainer, reticleStyle]} pointerEvents="none">
         <View style={styles.reticleFrame}>
-          {/* 4 Sudut Aksen Tebal */}
-          <View style={[styles.corner, styles.cornerTopLeft]} />
-          <View style={[styles.corner, styles.cornerTopRight]} />
-          <View style={[styles.corner, styles.cornerBottomLeft]} />
-          <View style={[styles.corner, styles.cornerBottomRight]} />
+          <View style={[styles.corner, styles.cornerTL, { borderTopColor: reticleColor, borderLeftColor: reticleColor }]} />
+          <View style={[styles.corner, styles.cornerTR, { borderTopColor: reticleColor, borderRightColor: reticleColor }]} />
+          <View style={[styles.corner, styles.cornerBL, { borderBottomColor: reticleColor, borderLeftColor: reticleColor }]} />
+          <View style={[styles.corner, styles.cornerBR, { borderBottomColor: reticleColor, borderRightColor: reticleColor }]} />
+
+          {isModelLoaded && (
+            <Animated.View
+              style={[
+                styles.scanLine,
+                scanLineStyle,
+                { backgroundColor: scanLineColor },
+              ]}
+            />
+          )}
         </View>
-        <Text style={styles.guideText}>Arahkan ke pusat sumbatan air / sampah</Text>
-      </View>
+        <Text style={styles.guideText}>Arahkan kamera ke area sampah / sumbatan air</Text>
+      </Animated.View>
     </View>
   );
 };
 
-const RETICLE_SIZE = 240;
-const CORNER_LENGTH = 36;
-const CORNER_THICKNESS = 4;
+export const ScannerHUDOverlay = React.memo(ScannerHUDOverlayInner);
 
 const styles = StyleSheet.create({
   container: {
@@ -63,35 +249,94 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
 
+  // === Dynamic AI Bounding Box ===
+  boundingBoxContainer: {
+    position: 'absolute',
+    borderWidth: 2,
+    borderRadius: 10,
+    zIndex: 5,
+  },
+  boxCorner: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+  },
+  boxCornerTL: {
+    top: -3,
+    left: -3,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 10,
+  },
+  boxCornerTR: {
+    top: -3,
+    right: -3,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 10,
+  },
+  boxCornerBL: {
+    bottom: -3,
+    left: -3,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomLeftRadius: 10,
+  },
+  boxCornerBR: {
+    bottom: -3,
+    right: -3,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderBottomRightRadius: 10,
+  },
+  boxLabel: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  boxLabelText: {
+    color: EcoWarnColors.textOnPrimary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+
   // === Top Section ===
   topSection: {
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
+    zIndex: 15, // Selalu berada di atas Bounding Box agar badge tidak tertembus
   },
   aiChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    paddingHorizontal: Spacing.md - 4,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     marginBottom: Spacing.sm,
   },
   pulseDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: EcoWarnColors.safe,
     marginRight: Spacing.sm,
-  },
-  pulseDotInactive: {
-    backgroundColor: EcoWarnColors.textDisabled,
   },
   aiChipText: {
     color: EcoWarnColors.textOnPrimary,
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
   badgeWrapper: {
     marginTop: Spacing.xs,
@@ -107,56 +352,58 @@ const styles = StyleSheet.create({
     width: RETICLE_SIZE,
     height: RETICLE_SIZE,
     position: 'relative',
+    overflow: 'hidden',
   },
   corner: {
     position: 'absolute',
     width: CORNER_LENGTH,
     height: CORNER_LENGTH,
   },
-  cornerTopLeft: {
+  cornerTL: {
     top: 0,
     left: 0,
     borderTopWidth: CORNER_THICKNESS,
     borderLeftWidth: CORNER_THICKNESS,
-    borderTopColor: EcoWarnColors.textOnPrimary,
-    borderLeftColor: EcoWarnColors.textOnPrimary,
-    borderTopLeftRadius: 6,
+    borderTopLeftRadius: 8,
   },
-  cornerTopRight: {
+  cornerTR: {
     top: 0,
     right: 0,
     borderTopWidth: CORNER_THICKNESS,
     borderRightWidth: CORNER_THICKNESS,
-    borderTopColor: EcoWarnColors.textOnPrimary,
-    borderRightColor: EcoWarnColors.textOnPrimary,
-    borderTopRightRadius: 6,
+    borderTopRightRadius: 8,
   },
-  cornerBottomLeft: {
+  cornerBL: {
     bottom: 0,
     left: 0,
     borderBottomWidth: CORNER_THICKNESS,
     borderLeftWidth: CORNER_THICKNESS,
-    borderBottomColor: EcoWarnColors.textOnPrimary,
-    borderLeftColor: EcoWarnColors.textOnPrimary,
-    borderBottomLeftRadius: 6,
+    borderBottomLeftRadius: 8,
   },
-  cornerBottomRight: {
+  cornerBR: {
     bottom: 0,
     right: 0,
     borderBottomWidth: CORNER_THICKNESS,
     borderRightWidth: CORNER_THICKNESS,
-    borderBottomColor: EcoWarnColors.textOnPrimary,
-    borderRightColor: EcoWarnColors.textOnPrimary,
-    borderBottomRightRadius: 6,
+    borderBottomRightRadius: 8,
+  },
+  scanLine: {
+    position: 'absolute',
+    top: 0,
+    left: CORNER_LENGTH / 2,
+    right: CORNER_LENGTH / 2,
+    height: 2,
+    borderRadius: 1,
   },
   guideText: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.75)',
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
-    marginTop: Spacing.md,
-    textShadowColor: 'rgba(0, 0, 0, 0.6)',
+    marginTop: Spacing.md + 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.7)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
+    letterSpacing: 0.3,
   },
 });
