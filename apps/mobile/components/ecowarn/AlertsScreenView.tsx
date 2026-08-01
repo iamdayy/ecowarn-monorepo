@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import * as Location from 'expo-location';
 import { fetchNearbyReports, ServerReportResponse } from '../../services/apiService';
+import { ScreenHeaderBanner } from './ScreenHeaderBanner';
+import { EcoWarnColors, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export const AlertsScreenView: React.FC = () => {
   const [alerts, setAlerts] = useState<ServerReportResponse[]>([]);
@@ -62,16 +64,15 @@ export const AlertsScreenView: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerBanner}>
-        <Text style={styles.bannerTitle}>Peringatan Dini Spasial 🔔</Text>
-        <Text style={styles.bannerSubtitle}>
-          Daftar notifikasi ancaman banjir rob dan sumbatan sanitasi di sekitar Anda
-        </Text>
-      </View>
+      <ScreenHeaderBanner
+        title="Peringatan Dini Spasial 🔔"
+        subtitle="Daftar notifikasi ancaman banjir rob dan sumbatan sanitasi di sekitar Anda"
+        accentColor={EcoWarnColors.primaryDark}
+      />
 
       {isLoading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#10b981" />
+          <ActivityIndicator size="large" color={EcoWarnColors.primaryLight} />
           <Text style={styles.loadingText}>Memuat log notifikasi bencana...</Text>
         </View>
       ) : (
@@ -80,7 +81,7 @@ export const AlertsScreenView: React.FC = () => {
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={['#10b981']} />}
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[EcoWarnColors.primaryLight]} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>✨</Text>
@@ -99,34 +100,11 @@ export const AlertsScreenView: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  headerBanner: {
-    backgroundColor: '#065f46',
-    padding: 22,
-    paddingTop: 45,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    shadowColor: '#065f46',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  bannerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  bannerSubtitle: {
-    fontSize: 13,
-    color: '#a7f3d0',
-    lineHeight: 18,
+    backgroundColor: EcoWarnColors.surface,
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: Spacing.md,
+    paddingBottom: Spacing.xxl,
   },
   centerContainer: {
     flex: 1,
@@ -134,38 +112,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    color: '#64748b',
+    marginTop: Spacing.md - 4,
+    color: EcoWarnColors.textMuted,
     fontSize: 14,
   },
   alertCard: {
     borderRadius: 14,
-    padding: 16,
+    padding: Spacing.md,
     marginBottom: 14,
     borderWidth: 1.5,
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    backgroundColor: EcoWarnColors.cardBg,
+    ...Shadows.card,
   },
   cardCritical: {
-    borderColor: '#ef4444',
-    backgroundColor: '#fef2f2',
+    borderColor: EcoWarnColors.critical,
+    backgroundColor: EcoWarnColors.criticalSurface,
   },
   cardWarning: {
-    borderColor: '#f97316',
-    backgroundColor: '#fff7ed',
+    borderColor: EcoWarnColors.warning,
+    backgroundColor: EcoWarnColors.warningSurface,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   alertIcon: {
     fontSize: 28,
-    marginRight: 12,
+    marginRight: Spacing.md - 4,
   },
   titleContainer: {
     flex: 1,
@@ -175,19 +149,19 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   textCritical: {
-    color: '#b91c1c',
+    color: EcoWarnColors.criticalDark,
   },
   textWarning: {
-    color: '#c2410c',
+    color: EcoWarnColors.warningDark,
   },
   timestamp: {
     fontSize: 12,
-    color: '#64748b',
+    color: EcoWarnColors.textMuted,
     marginTop: 2,
   },
   description: {
     fontSize: 14,
-    color: '#334155',
+    color: EcoWarnColors.textSecondary,
     lineHeight: 20,
   },
   bold: {
@@ -196,22 +170,22 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 40,
-    marginTop: 30,
+    padding: Spacing.xxl,
+    marginTop: Spacing.xl - 2,
   },
   emptyIcon: {
     fontSize: 50,
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 8,
+    color: EcoWarnColors.textPrimary,
+    marginBottom: Spacing.sm,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#64748b',
+    color: EcoWarnColors.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },

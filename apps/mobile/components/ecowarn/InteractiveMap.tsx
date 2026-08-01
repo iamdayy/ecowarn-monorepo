@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import { TrashVolumeStatus, SpatialCoordinates } from '../../types/ecowarn';
+import { EcoWarnColors, Spacing, BorderRadius } from '../../constants/theme';
 
 export interface MapReportItem {
   id: string;
@@ -25,16 +27,17 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   criticalZoneRadiusMeters = DEFAULT_CRITICAL_RADIUS,
 }) => {
   const [selectedReport, setSelectedReport] = useState<MapReportItem | null>(null);
+  const insets = useSafeAreaInsets();
 
   const getMarkerColor = (severity: TrashVolumeStatus): string => {
     switch (severity) {
       case 'Kritis':
-        return '#FF3B30';
+        return EcoWarnColors.critical;
       case 'Sedang':
-        return '#FF9500';
+        return EcoWarnColors.warning;
       case 'Ringan':
       default:
-        return '#34C759';
+        return EcoWarnColors.safe;
     }
   };
 
@@ -73,18 +76,18 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         ))}
       </MapView>
 
-      <View style={styles.legendContainer}>
+      <View style={[styles.legendContainer, { top: insets.top + Spacing.md }]}>
         <Text style={styles.legendTitle}>Legenda Peta Spasial:</Text>
         <View style={styles.legendRow}>
-          <View style={[styles.dot, { backgroundColor: '#FF3B30' }]} />
+          <View style={[styles.dot, { backgroundColor: EcoWarnColors.critical }]} />
           <Text style={styles.legendText}>Kritis (+ Zona Merah 5km)</Text>
         </View>
         <View style={styles.legendRow}>
-          <View style={[styles.dot, { backgroundColor: '#FF9500' }]} />
+          <View style={[styles.dot, { backgroundColor: EcoWarnColors.warning }]} />
           <Text style={styles.legendText}>Sedang</Text>
         </View>
         <View style={styles.legendRow}>
-          <View style={[styles.dot, { backgroundColor: '#34C759' }]} />
+          <View style={[styles.dot, { backgroundColor: EcoWarnColors.safe }]} />
           <Text style={styles.legendText}>Ringan</Text>
         </View>
       </View>
@@ -103,11 +106,10 @@ const styles = StyleSheet.create({
   },
   legendContainer: {
     position: 'absolute',
-    top: 50,
-    right: 16,
+    right: Spacing.md,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: 12,
-    borderRadius: 12,
+    padding: Spacing.md - 4,
+    borderRadius: BorderRadius.md,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -118,7 +120,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 13,
     marginBottom: 6,
-    color: '#1C1C1E',
+    color: EcoWarnColors.textPrimary,
   },
   legendRow: {
     flexDirection: 'row',
@@ -129,10 +131,10 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    marginRight: 8,
+    marginRight: Spacing.sm,
   },
   legendText: {
     fontSize: 12,
-    color: '#3A3A3C',
+    color: EcoWarnColors.textSecondary,
   },
 });

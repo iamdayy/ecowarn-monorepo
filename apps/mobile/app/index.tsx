@@ -2,6 +2,7 @@ import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
+import { EcoWarnColors } from '../constants/theme';
 
 export default function RootGatekeeper() {
   const { user, isLoading } = useAuth();
@@ -9,7 +10,7 @@ export default function RootGatekeeper() {
   if (isLoading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#10b981" />
+        <ActivityIndicator size="large" color={EcoWarnColors.primaryLight} />
       </View>
     );
   }
@@ -28,7 +29,7 @@ export default function RootGatekeeper() {
 const styles = StyleSheet.create({
   center: {
     flex: 1,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: EcoWarnColors.primarySoftBg,
     justifyContent: 'center',
     alignItems: 'center',
   },

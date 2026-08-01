@@ -3,18 +3,23 @@ import React from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { EcoWarnColors, Shadows } from '@/constants/theme';
 
 export default function WargaLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: EcoWarnColors.primaryLight,
+        tabBarInactiveTintColor: EcoWarnColors.textMuted,
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarStyle: {
+          backgroundColor: EcoWarnColors.cardBg,
+          borderTopWidth: 0,
+          height: 60,
+          paddingBottom: 8,
+          ...Shadows.tabBar,
+        },
       }}>
       <Tabs.Screen
         name="index"

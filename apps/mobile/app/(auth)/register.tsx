@@ -15,6 +15,7 @@ import { useRouter, Link } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { RoleRadioButton } from '../../components/ecowarn/RoleRadioButton';
 import { UserRole } from '../../types/auth';
+import { EcoWarnColors, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -78,7 +79,7 @@ export default function RegisterScreen() {
             <TextInput
               style={styles.input}
               placeholder="Masukkan nama lengkap Anda"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={EcoWarnColors.textPlaceholder}
               value={name}
               onChangeText={setName}
             />
@@ -89,7 +90,7 @@ export default function RegisterScreen() {
             <TextInput
               style={styles.input}
               placeholder="contoh@domain.com"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={EcoWarnColors.textPlaceholder}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -102,7 +103,7 @@ export default function RegisterScreen() {
             <TextInput
               style={styles.input}
               placeholder="Contoh: 081234567890"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={EcoWarnColors.textPlaceholder}
               value={phoneNumber}
               onChangeText={setPhoneNumber}
               keyboardType="phone-pad"
@@ -114,7 +115,7 @@ export default function RegisterScreen() {
             <TextInput
               style={styles.input}
               placeholder="Minimal 6 karakter"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={EcoWarnColors.textPlaceholder}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -130,7 +131,7 @@ export default function RegisterScreen() {
             activeOpacity={0.8}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#ffffff" />
+              <ActivityIndicator color={EcoWarnColors.textOnPrimary} />
             ) : (
               <Text style={styles.buttonText}>Daftarkan Akun ({role})</Text>
             )}
@@ -153,81 +154,77 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: EcoWarnColors.primarySoftBg,
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 20,
-    paddingTop: 40,
-    paddingBottom: 40,
+    padding: Spacing.lg - 4,
+    paddingTop: Spacing.xxl,
+    paddingBottom: Spacing.xxl,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing.lg,
   },
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#065f46',
+    color: EcoWarnColors.primaryDark,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 13,
-    color: '#475569',
+    color: EcoWarnColors.textSecondary,
     textAlign: 'center',
-    marginTop: 4,
-    paddingHorizontal: 12,
+    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.md - 4,
   },
   formCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 22,
-    shadowColor: '#047857',
+    backgroundColor: EcoWarnColors.cardBg,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg - 2,
+    shadowColor: EcoWarnColors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 5,
-    marginBottom: 20,
+    marginBottom: Spacing.lg - 4,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#334155',
+    color: EcoWarnColors.textSecondary,
     marginBottom: 6,
   },
   input: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: EcoWarnColors.surface,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: EcoWarnColors.borderInput,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: '#1e293b',
+    color: EcoWarnColors.textPrimary,
   },
   button: {
-    backgroundColor: '#10b981',
+    backgroundColor: EcoWarnColors.primaryLight,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 4,
+    marginTop: Spacing.md - 4,
+    ...Shadows.button,
   },
   buttonDisabled: {
-    backgroundColor: '#94a3b8',
+    backgroundColor: EcoWarnColors.textDisabled,
     shadowOpacity: 0,
     elevation: 0,
   },
   buttonText: {
-    color: '#ffffff',
+    color: EcoWarnColors.textOnPrimary,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -238,11 +235,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#64748b',
+    color: EcoWarnColors.textMuted,
   },
   loginLink: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#10b981',
+    color: EcoWarnColors.primaryLight,
   },
 });

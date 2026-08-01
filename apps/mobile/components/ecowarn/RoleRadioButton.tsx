@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { UserRole } from '../../types/auth';
+import { EcoWarnColors, Spacing, BorderRadius } from '../../constants/theme';
 
 interface RoleRadioButtonProps {
   selectedRole: UserRole;
@@ -56,28 +57,28 @@ export const RoleRadioButton: React.FC<RoleRadioButtonProps> = ({ selectedRole, 
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 12,
+    marginVertical: Spacing.md - 4,
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#334155',
-    marginBottom: 8,
+    color: EcoWarnColors.textSecondary,
+    marginBottom: Spacing.sm,
   },
   buttonContainer: {
     gap: 10,
   },
   roleCard: {
     borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
+    borderColor: EcoWarnColors.border,
+    borderRadius: BorderRadius.md,
     padding: 14,
-    backgroundColor: '#f8fafc',
+    backgroundColor: EcoWarnColors.surface,
   },
   roleCardSelected: {
-    borderColor: '#10b981',
-    backgroundColor: '#ecfdf5',
-    shadowColor: '#10b981',
+    borderColor: EcoWarnColors.primaryLight,
+    backgroundColor: EcoWarnColors.primarySurface,
+    shadowColor: EcoWarnColors.primaryLight,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
@@ -90,41 +91,41 @@ const styles = StyleSheet.create({
   },
   roleIcon: {
     fontSize: 20,
-    marginRight: 8,
+    marginRight: Spacing.sm,
   },
   roleTitle: {
     flex: 1,
     fontSize: 16,
     fontWeight: '700',
-    color: '#475569',
+    color: EcoWarnColors.textSecondary,
   },
   roleTitleSelected: {
-    color: '#047857',
+    color: EcoWarnColors.primary,
   },
   radioCircle: {
     width: 22,
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: '#cbd5e1',
+    borderColor: EcoWarnColors.borderInput,
     alignItems: 'center',
     justifyContent: 'center',
   },
   radioCircleSelected: {
-    borderColor: '#10b981',
+    borderColor: EcoWarnColors.primaryLight,
   },
   radioDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#10b981',
+    backgroundColor: EcoWarnColors.primaryLight,
   },
   roleDescription: {
     fontSize: 12,
-    color: '#64748b',
+    color: EcoWarnColors.textMuted,
     lineHeight: 16,
   },
   roleDescriptionSelected: {
-    color: '#065f46',
+    color: EcoWarnColors.primaryDark,
   },
 });

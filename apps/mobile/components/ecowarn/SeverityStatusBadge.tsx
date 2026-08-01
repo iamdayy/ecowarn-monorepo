@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { TrashVolumeStatus } from '../../types/ecowarn';
+import { EcoWarnColors } from '../../constants/theme';
 
 interface SeverityStatusBadgeProps {
   severity: TrashVolumeStatus;
@@ -11,12 +12,12 @@ export const SeverityStatusBadge: React.FC<SeverityStatusBadgeProps> = ({ severi
   const getBadgeColor = (): string => {
     switch (severity) {
       case 'Kritis':
-        return '#FF3B30'; // Merah (Bahaya Kritis)
+        return EcoWarnColors.critical; // Merah (Bahaya Kritis)
       case 'Sedang':
-        return '#FF9500'; // Jingga (Peringatan)
+        return EcoWarnColors.warning; // Jingga (Peringatan)
       case 'Ringan':
       default:
-        return '#34C759'; // Hijau (Aman/Ringan)
+        return EcoWarnColors.safe; // Hijau (Aman/Ringan)
     }
   };
 
@@ -45,13 +46,13 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   badgeText: {
-    color: '#FFFFFF',
+    color: EcoWarnColors.textOnPrimary,
     fontWeight: 'bold',
     fontSize: 14,
     marginRight: 6,
   },
   ratioText: {
-    color: '#FFFFFF',
+    color: EcoWarnColors.textOnPrimary,
     fontSize: 12,
     opacity: 0.9,
   },

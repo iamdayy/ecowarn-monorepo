@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { fetchReporterHistory, ServerReportResponse } from '../../services/apiService';
+import { ScreenHeaderBanner } from './ScreenHeaderBanner';
+import { EcoWarnColors, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export const HistoryScreenView: React.FC = () => {
   const { token } = useAuth();
@@ -35,11 +37,11 @@ export const HistoryScreenView: React.FC = () => {
   const getBadgeStyle = (severity: string) => {
     switch (severity) {
       case 'Kritis':
-        return { bg: '#fee2e2', border: '#ef4444', text: '#b91c1c', icon: '🔴' };
+        return { bg: EcoWarnColors.criticalSurface, border: EcoWarnColors.critical, text: EcoWarnColors.criticalDark, icon: '🔴' };
       case 'Sedang':
-        return { bg: '#ffedd5', border: '#f97316', text: '#c2410c', icon: '🟠' };
+        return { bg: EcoWarnColors.warningSurface, border: EcoWarnColors.warning, text: EcoWarnColors.warningDark, icon: '🟠' };
       default:
-        return { bg: '#d1fae5', border: '#10b981', text: '#047857', icon: '🟢' };
+        return { bg: EcoWarnColors.safeSurface, border: EcoWarnColors.primaryLight, text: EcoWarnColors.primary, icon: '🟢' };
     }
   };
 
@@ -71,16 +73,15 @@ export const HistoryScreenView: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerBanner}>
-        <Text style={styles.bannerTitle}>Riwayat Kontribusi AI 🛡️</Text>
-        <Text style={styles.bannerSubtitle}>
-          Daftar seluruh inspeksi dan pelaporan ancaman sampah yang telah Anda validasi
-        </Text>
-      </View>
+      <ScreenHeaderBanner
+        title="Riwayat Kontribusi AI 🛡️"
+        subtitle="Daftar seluruh inspeksi dan pelaporan ancaman sampah yang telah Anda validasi"
+        accentColor={EcoWarnColors.primary}
+      />
 
       {isLoading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#10b981" />
+          <ActivityIndicator size="large" color={EcoWarnColors.primaryLight} />
           <Text style={styles.loadingText}>Menarik riwayat dari peladen...</Text>
         </View>
       ) : (
@@ -89,7 +90,7 @@ export const HistoryScreenView: React.FC = () => {
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={['#10b981']} />}
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[EcoWarnColors.primaryLight]} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>📋</Text>
@@ -108,34 +109,11 @@ export const HistoryScreenView: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  headerBanner: {
-    backgroundColor: '#047857',
-    padding: 22,
-    paddingTop: 45,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    shadowColor: '#047857',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  bannerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  bannerSubtitle: {
-    fontSize: 13,
-    color: '#d1fae5',
-    lineHeight: 18,
+    backgroundColor: EcoWarnColors.surface,
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: Spacing.md,
+    paddingBottom: Spacing.xxl,
   },
   centerContainer: {
     flex: 1,
@@ -143,22 +121,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    color: '#64748b',
+    marginTop: Spacing.md - 4,
+    color: EcoWarnColors.textMuted,
     fontSize: 14,
   },
   reportCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: EcoWarnColors.cardBg,
     borderRadius: 14,
-    padding: 16,
+    padding: Spacing.md,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#64748b',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    borderColor: EcoWarnColors.border,
+    ...Shadows.card,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -174,18 +148,18 @@ const styles = StyleSheet.create({
   reportTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1e293b',
+    color: EcoWarnColors.textPrimary,
   },
   timestamp: {
     fontSize: 12,
-    color: '#64748b',
+    color: EcoWarnColors.textMuted,
     marginTop: 2,
   },
   severityBadge: {
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 16,
+    paddingHorizontal: Spacing.md - 4,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.lg,
   },
   severityText: {
     fontSize: 12,
@@ -194,33 +168,33 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#f1f5f9',
-    marginVertical: 12,
+    backgroundColor: EcoWarnColors.divider,
+    marginVertical: Spacing.md - 4,
   },
   coordinateText: {
     fontSize: 13,
-    color: '#475569',
+    color: EcoWarnColors.textSecondary,
     fontWeight: '500',
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 40,
-    marginTop: 30,
+    padding: Spacing.xxl,
+    marginTop: Spacing.xl - 2,
   },
   emptyIcon: {
     fontSize: 50,
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 8,
+    color: EcoWarnColors.textPrimary,
+    marginBottom: Spacing.sm,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#64748b',
+    color: EcoWarnColors.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },

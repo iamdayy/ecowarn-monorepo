@@ -1,11 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
+import { EcoWarnColors, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export const ProfileScreenView: React.FC = () => {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const handleLogout = () => {
     Alert.alert(
@@ -36,7 +39,10 @@ export const ProfileScreenView: React.FC = () => {
   const isRelawan = user.role === 'Relawan';
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.md }]}
+    >
       <View style={styles.header}>
         <View style={[styles.avatarCircle, isRelawan ? styles.avatarRelawan : styles.avatarWarga]}>
           <Text style={styles.avatarIcon}>{isRelawan ? '🛡️' : '👤'}</Text>
@@ -84,22 +90,21 @@ export const ProfileScreenView: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: EcoWarnColors.surface,
   },
   content: {
-    padding: 20,
-    paddingTop: 40,
-    paddingBottom: 40,
+    padding: Spacing.lg - 4,
+    paddingBottom: Spacing.xxl,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: Spacing.lg,
   },
   errorText: {
     fontSize: 15,
-    color: '#ef4444',
+    color: EcoWarnColors.critical,
     textAlign: 'center',
   },
   header: {
@@ -120,14 +125,14 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   avatarRelawan: {
-    backgroundColor: '#d1fae5',
+    backgroundColor: EcoWarnColors.primaryMuted,
     borderWidth: 3,
-    borderColor: '#10b981',
+    borderColor: EcoWarnColors.primaryLight,
   },
   avatarWarga: {
-    backgroundColor: '#e0e7ff',
+    backgroundColor: EcoWarnColors.roleWargaSurface,
     borderWidth: 3,
-    borderColor: '#6366f1',
+    borderColor: EcoWarnColors.roleWargaAccent,
   },
   avatarIcon: {
     fontSize: 42,
@@ -135,23 +140,23 @@ const styles = StyleSheet.create({
   nameText: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#1e293b',
-    marginBottom: 8,
+    color: EcoWarnColors.textPrimary,
+    marginBottom: Spacing.sm,
   },
   roleBadge: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Spacing.md,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: BorderRadius.xl,
   },
   badgeRelawan: {
-    backgroundColor: '#ecfdf5',
+    backgroundColor: EcoWarnColors.primarySurface,
     borderWidth: 1,
-    borderColor: '#34d399',
+    borderColor: EcoWarnColors.primaryLight,
   },
   badgeWarga: {
-    backgroundColor: '#eef2ff',
+    backgroundColor: EcoWarnColors.roleWargaBg,
     borderWidth: 1,
-    borderColor: '#818cf8',
+    borderColor: EcoWarnColors.roleWargaBorder,
   },
   roleText: {
     fontSize: 13,
@@ -160,27 +165,23 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   roleRelawan: {
-    color: '#059669',
+    color: EcoWarnColors.primary,
   },
   roleWarga: {
-    color: '#4338ca',
+    color: EcoWarnColors.roleWargaText,
   },
   infoCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#64748b',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
+    backgroundColor: EcoWarnColors.cardBg,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg - 4,
+    ...Shadows.card,
     marginBottom: 28,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#334155',
-    marginBottom: 16,
+    color: EcoWarnColors.textSecondary,
+    marginBottom: Spacing.md,
   },
   infoRow: {
     flexDirection: 'row',
@@ -189,29 +190,29 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#64748b',
+    color: EcoWarnColors.textMuted,
     fontWeight: '500',
   },
   infoValue: {
     fontSize: 14,
-    color: '#1e293b',
+    color: EcoWarnColors.textPrimary,
     fontWeight: '600',
     flexShrink: 1,
     textAlign: 'right',
   },
   divider: {
     height: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: EcoWarnColors.divider,
   },
   logoutButton: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: EcoWarnColors.criticalSurface,
     borderWidth: 1,
-    borderColor: '#ef4444',
-    borderRadius: 12,
+    borderColor: EcoWarnColors.critical,
+    borderRadius: BorderRadius.md,
     paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#ef4444',
+    shadowColor: EcoWarnColors.critical,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
     shadowRadius: 5,
@@ -220,6 +221,6 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#b91c1c',
+    color: EcoWarnColors.criticalDark,
   },
 });

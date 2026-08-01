@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { EcoWarnColors, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -60,7 +61,7 @@ export default function LoginScreen() {
             <TextInput
               style={styles.input}
               placeholder="Contoh: user@eco.org atau 08123456789"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={EcoWarnColors.textPlaceholder}
               value={identifier}
               onChangeText={setIdentifier}
               autoCapitalize="none"
@@ -73,7 +74,7 @@ export default function LoginScreen() {
             <TextInput
               style={styles.input}
               placeholder="Masukkan kata sandi Anda"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={EcoWarnColors.textPlaceholder}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -87,7 +88,7 @@ export default function LoginScreen() {
             activeOpacity={0.8}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#ffffff" />
+              <ActivityIndicator color={EcoWarnColors.textOnPrimary} />
             ) : (
               <Text style={styles.buttonText}>Masuk ke Sistem</Text>
             )}
@@ -110,47 +111,47 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: EcoWarnColors.primarySoftBg,
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 24,
+    padding: Spacing.lg,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: Spacing.xl,
   },
   logoText: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#10b981',
-    marginBottom: 12,
+    color: EcoWarnColors.primaryLight,
+    marginBottom: Spacing.md - 4,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#065f46',
+    color: EcoWarnColors.primaryDark,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: '#475569',
+    color: EcoWarnColors.textSecondary,
     textAlign: 'center',
     marginTop: 6,
-    paddingHorizontal: 16,
+    paddingHorizontal: Spacing.md,
     lineHeight: 20,
   },
   formCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#047857',
+    backgroundColor: EcoWarnColors.cardBg,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    shadowColor: EcoWarnColors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 5,
-    marginBottom: 24,
+    marginBottom: Spacing.lg,
   },
   inputGroup: {
     marginBottom: 18,
@@ -158,39 +159,35 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#334155',
+    color: EcoWarnColors.textSecondary,
     marginBottom: 6,
   },
   input: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: EcoWarnColors.surface,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: EcoWarnColors.borderInput,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: '#1e293b',
+    color: EcoWarnColors.textPrimary,
   },
   button: {
-    backgroundColor: '#10b981',
+    backgroundColor: EcoWarnColors.primaryLight,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 4,
+    marginTop: Spacing.sm,
+    ...Shadows.button,
   },
   buttonDisabled: {
-    backgroundColor: '#94a3b8',
+    backgroundColor: EcoWarnColors.textDisabled,
     shadowOpacity: 0,
     elevation: 0,
   },
   buttonText: {
-    color: '#ffffff',
+    color: EcoWarnColors.textOnPrimary,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -201,11 +198,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#64748b',
+    color: EcoWarnColors.textMuted,
   },
   registerLink: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#10b981',
+    color: EcoWarnColors.primaryLight,
   },
 });

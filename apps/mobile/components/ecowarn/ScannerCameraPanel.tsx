@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import { Camera, useCameraDevice, useFrameProcessor, runAtTargetFps, Frame } from 'react-native-vision-camera';
 import { Worklets } from 'react-native-worklets-core';
 import { NitroModules } from 'react-native-nitro-modules';
@@ -7,7 +7,9 @@ import { useResizePlugin } from 'vision-camera-resize-plugin';
 import { TrashVolumeStatus, ReportPayload, SpatialCoordinates } from '../../types/ecowarn';
 import { calculateBoundingBoxRatio, determineSeverityStatus } from '../../utils/volumeCalculator';
 import { useTrashDetectorModel } from '../../services/aiService';
-import { SeverityStatusBadge } from './SeverityStatusBadge';
+import { ScannerHUDOverlay } from './ScannerHUDOverlay';
+import { ScannerActionFooter } from './ScannerActionFooter';
+import { UnauthorizedCameraView } from './UnauthorizedCameraView';
 
 const TARGET_INFERENCE_FPS = 8; // Optimal untuk pemrosesan AI mobile yang lancar tanpa membebani CPU (tanpa lag/patah-patah)
 
@@ -206,22 +208,19 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
     }
   }, [currentLocation, detectedSeverity, onSendReport]);
 
+  // === Tampilan Belum Diizinkan ===
   if (!hasPermission || !device) {
     return (
-      <View style={styles.unauthorizedContainer}>
-        <Text style={styles.unauthorizedText}>Izin akses kamera diperlukan untuk pemantauan EcoWarn.</Text>
-        <TouchableOpacity
-          style={[styles.reportButton, { marginTop: 16, width: 200 }]}
-          onPress={async () => {
-            const status = await Camera.requestCameraPermission();
-            setHasPermission(status === 'granted');
-          }}>
-          <Text style={styles.reportButtonText}>Beri Izin Kamera</Text>
-        </TouchableOpacity>
-      </View>
+      <UnauthorizedCameraView
+        onRequestPermission={async () => {
+          const status = await Camera.requestCameraPermission();
+          setHasPermission(status === 'granted');
+        }}
+      />
     );
   }
 
+  // === Tampilan Utama Scanner ===
   return (
     <View style={styles.container}>
       <Camera
@@ -230,24 +229,16 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
         isActive={true}
         frameProcessor={frameProcessor}
       />
-
-      <View style={styles.overlayHeader}>
-        <SeverityStatusBadge severity={detectedSeverity} ratio={currentRatio} />
-      </View>
-
-      <View style={styles.overlayFooter}>
-        <TouchableOpacity
-          style={[styles.reportButton, isReporting && styles.reportButtonDisabled]}
-          onPress={handleSendReport}
-          disabled={isReporting}>
-          <Text style={styles.reportButtonText}>
-            {isReporting ? 'Mengirim Data...' : `Kirim Peringatan (${detectedSeverity})`}
-          </Text>
-        </TouchableOpacity>
-        <Text style={styles.privacyNote}>
-          🔒 Client-Side AI Inference: Gambar diproses lokal, hanya koordinat & status yang dikirim.
-        </Text>
-      </View>
+      <ScannerHUDOverlay
+        severity={detectedSeverity}
+        ratio={currentRatio}
+        isModelLoaded={!!model}
+      />
+      <ScannerActionFooter
+        severity={detectedSeverity}
+        isReporting={isReporting}
+        onSendReport={handleSendReport}
+      />
     </View>
   );
 };
@@ -257,60 +248,5 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     backgroundColor: '#000000',
-  },
-  unauthorizedContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1C1C1E',
-  },
-  unauthorizedText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-  },
-  overlayHeader: {
-    position: 'absolute',
-    top: 50,
-    width: '100%',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  overlayFooter: {
-    position: 'absolute',
-    bottom: 40,
-    width: '100%',
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  reportButton: {
-    width: '100%',
-    backgroundColor: '#007AFF',
-    paddingVertical: 16,
-    borderRadius: 30,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
-  },
-  reportButtonDisabled: {
-    backgroundColor: '#8E8E93',
-  },
-  reportButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  privacyNote: {
-    color: '#E5E5EA',
-    fontSize: 11,
-    marginTop: 10,
-    textAlign: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
   },
 });
