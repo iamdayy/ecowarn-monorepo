@@ -25,4 +25,5 @@ export interface ReportPayload {
   latitude: number;
   longitude: number;
   severity: TrashVolumeStatus;
+  photoUrl?: string;
 }

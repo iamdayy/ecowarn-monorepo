@@ -8,34 +8,8 @@ import {
   AuthorizationStatus,
 } from '@react-native-firebase/messaging';
 import type { RemoteMessage } from '@react-native-firebase/messaging';
-import notifee, { AndroidImportance, AndroidColor, EventType } from '@notifee/react-native';
+import { Alert } from 'react-native';
 import { getApiUrl } from './apiService';
-
-const NOTIFICATION_CHANNEL_ID = 'ecowarn_critical_alert';
-const NOTIFICATION_CHANNEL_NAME = 'Peringatan Darurat EcoWarn';
-
-/**
- * Membuat notification channel Notifee untuk peringatan darurat.
- * Channel ini menggunakan importance HIGH (heads-up banner), warna merah, dan vibration.
- * Harus dipanggil sekali saat app pertama kali dimuat.
- */
-export const setupNotifeeChannels = async (): Promise<void> => {
-  try {
-    await notifee.createChannel({
-      id: NOTIFICATION_CHANNEL_ID,
-      name: NOTIFICATION_CHANNEL_NAME,
-      importance: AndroidImportance.HIGH,
-      vibration: true,
-      lights: true,
-      lightColor: AndroidColor.RED,
-      sound: 'default',
-    });
-    console.log('[Notifee] Channel peringatan darurat berhasil dibuat.');
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`[Error Notifee] Gagal membuat notification channel: ${errorMessage}`);
-  }
-};
 
 /**
  * Meminta izin notifikasi push dari pengguna.
@@ -143,7 +117,7 @@ export const deleteFcmTokenFromServer = async (authToken: string): Promise<void>
 
 /**
  * Mendaftarkan listener untuk pesan FCM saat aplikasi di foreground.
- * Menampilkan notifikasi Notifee dengan style darurat (banner merah).
+ * Menampilkan Alert standar React Native untuk pemberitahuan darurat.
  * Mengembalikan fungsi unsubscribe untuk cleanup.
  */
 export const setupForegroundMessageListener = (): (() => void) => {
@@ -155,23 +129,11 @@ export const setupForegroundMessageListener = (): (() => void) => {
       const title = remoteMessage.notification?.title || '⚠️ PERINGATAN ECOWARN';
       const body = remoteMessage.notification?.body || 'Terdeteksi kondisi darurat di sekitar zona Anda.';
 
-      // Tampilkan notifikasi kustom via Notifee (banner merah, heads-up)
-      await notifee.displayNotification({
-        title,
-        body,
-        android: {
-          channelId: NOTIFICATION_CHANNEL_ID,
-          color: '#FF0000',
-          importance: AndroidImportance.HIGH,
-          pressAction: {
-            id: 'default',
-          },
-          smallIcon: 'ic_launcher',
-        },
-      });
+      // Tampilkan alert standar saat aplikasi terbuka (foreground)
+      Alert.alert(String(title), String(body), [{ text: 'Mengerti', style: 'default' }]);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[Error FCM Foreground] Gagal menampilkan notifikasi: ${errorMessage}`);
+      console.error(`[Error FCM Foreground] Gagal memproses pesan: ${errorMessage}`);
     }
   });
 
@@ -200,19 +162,7 @@ export const onTokenRefresh = (
   return unsubscribe;
 };
 
-/**
- * Mendaftarkan listener untuk event foreground Notifee (tap notifikasi).
- * Mengembalikan fungsi unsubscribe untuk cleanup.
- */
-export const setupNotifeeEventListener = (): (() => void) => {
-  const unsubscribe = notifee.onForegroundEvent(({ type, detail }) => {
-    if (type === EventType.PRESS) {
-      console.log('[Notifee] Notifikasi ditekan oleh pengguna:', detail.notification?.id);
-    }
-  });
 
-  return unsubscribe;
-};
 
 /**
  * Mendaftarkan background message handler.
@@ -236,8 +186,6 @@ export const initializeFcm = async (authToken: string): Promise<void> => {
       console.warn('[FCM] Registrasi FCM dibatalkan: izin notifikasi ditolak.');
       return;
     }
-
-    await setupNotifeeChannels();
 
     const fcmToken = await getFcmDeviceToken();
     if (!fcmToken) {

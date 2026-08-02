@@ -100,36 +100,30 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         ))}
       </MapView>
 
-      {/* Kontrol Bar Spasial (Layer, 3D Building, & Legenda) */}
-      <View style={styles.controlBarContainer}>
+      {/* Stack Kontrol FAB Spasial di Sisi Kanan Peta */}
+      <View style={styles.fabStackContainer}>
         <TouchableOpacity
-          style={styles.controlChip}
+          style={[styles.fabButton, mapType === 'hybrid' && styles.fabButtonActive]}
           onPress={() => setMapType((prev) => (prev === 'standard' ? 'hybrid' : 'standard'))}
-          activeOpacity={0.85}>
-          <Text style={styles.controlChipIcon}>{mapType === 'standard' ? '🛰️' : '🗺️'}</Text>
-          <Text style={styles.controlChipText}>
-            {mapType === 'standard' ? 'Satelit' : 'Jalan'}
-          </Text>
+          activeOpacity={0.85}
+          accessibilityLabel="Toggle Satelit">
+          <Text style={styles.fabIcon}>{mapType === 'standard' ? '🛰️' : '🗺️'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.controlChip, is3D && styles.controlChipActive]}
+          style={[styles.fabButton, is3D && styles.fabButtonActive]}
           onPress={toggle3DMode}
-          activeOpacity={0.85}>
-          <Text style={styles.controlChipIcon}>🏙️</Text>
-          <Text style={[styles.controlChipText, is3D && styles.controlChipTextActive]}>
-            {is3D ? '2D Datar' : '3D Bangunan'}
-          </Text>
+          activeOpacity={0.85}
+          accessibilityLabel="Toggle 3D Bangunan">
+          <Text style={styles.fabIcon}>🏙️</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.controlChip, showLegend && styles.controlChipActive]}
+          style={[styles.fabButton, showLegend && styles.fabButtonActive]}
           onPress={() => setShowLegend((prev) => !prev)}
-          activeOpacity={0.85}>
-          <Text style={styles.controlChipIcon}>ℹ️</Text>
-          <Text style={[styles.controlChipText, showLegend && styles.controlChipTextActive]}>
-            Legenda
-          </Text>
+          activeOpacity={0.85}
+          accessibilityLabel="Toggle Legenda">
+          <Text style={styles.fabIcon}>ℹ️</Text>
         </TouchableOpacity>
       </View>
 
@@ -212,16 +206,20 @@ const styles = StyleSheet.create({
   },
   legendContainer: {
     position: 'absolute',
-    bottom: Spacing.lg + 80,
-    right: Spacing.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: Spacing.md - 4,
+    top: 240,
+    right: 16,
+    width: 220,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    padding: Spacing.md - 2,
     borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
-    shadowRadius: 3.84,
-    elevation: 4,
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 20,
   },
   legendTitle: {
     fontWeight: '700',
@@ -244,46 +242,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: EcoWarnColors.textSecondary,
   },
-  controlBarContainer: {
+  fabStackContainer: {
     position: 'absolute',
-    top: Spacing.md + 40,
-    left: Spacing.md,
-    right: Spacing.md,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
+    right: 16,
+    top: 60,
+    flexDirection: 'column',
+    gap: 12,
+    zIndex: 15,
   },
-  controlChip: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: Spacing.md - 2,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.xl,
-    flexDirection: 'row',
+  fabButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
     alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3.84,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
   },
-  controlChipActive: {
-    backgroundColor: EcoWarnColors.primary,
+  fabButtonActive: {
+    backgroundColor: EcoWarnColors.primarySurface,
+    borderColor: EcoWarnColors.primary,
+    borderWidth: 2,
   },
-  controlChipIcon: {
-    fontSize: 13,
-    marginRight: 5,
-  },
-  controlChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: EcoWarnColors.textPrimary,
-  },
-  controlChipTextActive: {
-    color: '#FFFFFF',
+  fabIcon: {
+    fontSize: 22,
   },
   appToolbarContainer: {
     position: 'absolute',
-    bottom: Spacing.lg + 20,
+    bottom: 95, // Ditinggikan sedikit agar melayang di atas Floating Tab Bar kustom
     left: Spacing.md,
     right: Spacing.md,
     backgroundColor: '#FFFFFF',

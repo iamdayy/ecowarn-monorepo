@@ -6,6 +6,7 @@ import { Worklets } from 'react-native-worklets-core';
 import { NitroModules } from 'react-native-nitro-modules';
 import { useResizePlugin } from 'vision-camera-resize-plugin';
 import * as Haptics from 'expo-haptics';
+import * as FileSystem from 'expo-file-system';
 import { TrashVolumeStatus, ReportPayload, SpatialCoordinates, BoundingBox } from '../../types/ecowarn';
 import { processYoloInference } from '../../utils/yoloPostProcessor';
 import { useTrashDetectorModel } from '../../services/aiService';
@@ -26,12 +27,14 @@ const CONFIDENCE_THRESHOLD = 0.45;
 //    stream Zero-Copy native terbaik sesuai kecepatan layar (60Hz/90Hz/120Hz).
 // =====================================================================
 const MemoizedCameraView = React.memo(({
+  cameraRef,
   device,
   frameProcessor,
   isActive,
   torch = 'off',
   zoom = 1,
 }: {
+  cameraRef?: React.RefObject<Camera | null>;
   device: React.ComponentProps<typeof Camera>['device'];
   frameProcessor: React.ComponentProps<typeof Camera>['frameProcessor'];
   isActive: boolean;
@@ -39,9 +42,11 @@ const MemoizedCameraView = React.memo(({
   zoom?: number;
 }) => (
   <Camera
+    ref={cameraRef}
     style={StyleSheet.absoluteFill}
     device={device}
     isActive={isActive}
+    photo={true}
     pixelFormat="yuv"
     frameProcessor={isActive ? frameProcessor : undefined}
     torch={isActive ? torch : 'off'}
@@ -65,12 +70,20 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   onSendReport,
 }) => {
   const device = useCameraDevice('back');
+  const cameraRef = useRef<Camera>(null);
   const [hasPermission, setHasPermission] = useState<boolean>(false);
   const [detectedSeverity, setDetectedSeverity] = useState<TrashVolumeStatus>('Ringan');
   const [currentRatio, setCurrentRatio] = useState<number>(0.0);
   const [detectedBox, setDetectedBox] = useState<BoundingBox | undefined>(undefined);
   const [isReporting, setIsReporting] = useState<boolean>(false);
   const { resize } = useResizePlugin();
+
+  // State penguncian deteksi (Detection Lock)
+  const [isLocked, setIsLocked] = useState<boolean>(false);
+  const isLockedRef = useRef<boolean>(false);
+  useEffect(() => {
+    isLockedRef.current = isLocked;
+  }, [isLocked]);
 
   // Lifecycle & Navigation Focus Tracking (Mencegah kamera berjalan saat layar mati atau pindah halaman/tab)
   const isFocused = useIsFocused();
@@ -163,6 +176,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   // =====================================================================
   const updateDetectionResult = useMemo(
     () => Worklets.createRunOnJS((ratio: number, severity: TrashVolumeStatus, box?: BoundingBox) => {
+      if (isLockedRef.current) return; // Abaikan pembaruan frame jika status terkunci
       setDetectedSeverity(severity);
       setCurrentRatio(ratio);
       setDetectedBox(box);
@@ -244,16 +258,38 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   const handleSendReport = useCallback(async () => {
     try {
       setIsReporting(true);
+      let photoUrl: string | undefined = undefined;
 
-      // PAYLOAD KETAT: Hanya kirim titik koordinat dan status keparahan ke peladen!
+      // Ambil foto lapangan secara otentik dan konversi ke Base64 untuk verifikasi publik
+      if (cameraRef.current) {
+        try {
+          const photo = await cameraRef.current.takePhoto({
+            flash: isTorchOn ? 'on' : 'off',
+          });
+          if (photo && photo.path) {
+            const base64Image = await FileSystem.readAsStringAsync(photo.path, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            photoUrl = `data:image/jpeg;base64,${base64Image}`;
+          }
+        } catch (photoErr) {
+          console.warn('[Camera Snapshot] Gagal memotret bukti lapangan:', photoErr);
+        }
+      }
+
+      // PAYLOAD: Kirim koordinat, status keparahan, dan bukti foto ke peladen
       const payload: ReportPayload = {
         latitude: currentLocation.latitude,
         longitude: currentLocation.longitude,
         severity: detectedSeverity,
+        photoUrl,
       };
 
       await onSendReport(payload);
       Alert.alert('Sukses', `Laporan status ${detectedSeverity} berhasil dikirim ke peladen.`);
+      if (isLocked) {
+        setIsLocked(false); // Otomatis buka kunci setelah sukses melapor
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[Error Send Report] Gagal mengirim payload laporan: ${errorMessage}`);
@@ -261,7 +297,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
     } finally {
       setIsReporting(false);
     }
-  }, [currentLocation, detectedSeverity, onSendReport]);
+  }, [currentLocation, detectedSeverity, onSendReport, isTorchOn, isLocked]);
 
   // === Tampilan Belum Diizinkan ===
   if (!hasPermission || !device) {
@@ -279,6 +315,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   return (
     <View style={styles.container}>
       <MemoizedCameraView
+        cameraRef={cameraRef}
         device={device}
         frameProcessor={frameProcessor}
         isActive={isCameraActive}
@@ -296,6 +333,11 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
         onCycleZoom={() => setZoomLevel((prev) => (prev === 1 ? 2 : prev === 2 ? 3 : 1))}
         isHapticMuted={isHapticMuted}
         onToggleHapticMute={() => setIsHapticMuted((prev) => !prev)}
+        isLocked={isLocked}
+        onToggleLock={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setIsLocked((prev) => !prev);
+        }}
       />
       <ScannerActionFooter
         severity={detectedSeverity}

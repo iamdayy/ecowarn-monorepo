@@ -64,8 +64,8 @@ const ScannerActionFooterInner: React.FC<ScannerActionFooterProps> = ({
   };
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.contentArea, { paddingBottom: insets.bottom + Spacing.md }]}>
+    <View style={[styles.container, { bottom: Math.max(insets.bottom, 16) + 75 }]}>
+      <View style={styles.contentArea}>
         {/* === GPS Telemetry & Accuracy Chip === */}
         {currentLocation && (
           <View style={styles.gpsChipContainer}>
@@ -106,8 +106,7 @@ const ScannerActionFooterInner: React.FC<ScannerActionFooterProps> = ({
 
         <View style={styles.privacyCard}>
           <Text style={styles.privacyText}>
-            🛡️ <Text style={styles.privacyBold}>Client-Side Inference:</Text> Frame kamera
-            diproses 100% lokal. Hanya koordinat &amp; status yang dikirim.
+            📸 <Text style={styles.privacyBold}>Verifikasi Otentik:</Text> Foto bukti lapangan &amp; koordinat spasial disematkan otomatis.
           </Text>
         </View>
       </View>
@@ -120,18 +119,22 @@ export const ScannerActionFooter = React.memo(ScannerActionFooterInner);
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 0,
-    width: '100%',
+    left: 16,
+    right: 16,
     zIndex: 10,
   },
   contentArea: {
-    backgroundColor: 'rgba(10, 10, 10, 0.75)',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 24,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
   },
   reportButton: {
     width: '100%',

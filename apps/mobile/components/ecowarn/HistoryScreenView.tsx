@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { fetchReporterHistory, ServerReportResponse } from '../../services/apiService';
 import { ScreenHeaderBanner } from './ScreenHeaderBanner';
+import { ReportDetailModal } from './ReportDetailModal';
 import { EcoWarnColors, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export const HistoryScreenView: React.FC = () => {
@@ -10,6 +11,8 @@ export const HistoryScreenView: React.FC = () => {
   const [history, setHistory] = useState<ServerReportResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [selectedReport, setSelectedReport] = useState<ServerReportResponse | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
 
   const loadHistory = useCallback(async () => {
     if (!token) return;
@@ -50,7 +53,14 @@ export const HistoryScreenView: React.FC = () => {
     const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleString('id-ID') : 'Baru saja';
 
     return (
-      <View style={styles.reportCard}>
+      <TouchableOpacity
+        style={styles.reportCard}
+        activeOpacity={0.8}
+        onPress={() => {
+          setSelectedReport(item);
+          setIsModalVisible(true);
+        }}
+      >
         <View style={styles.cardHeader}>
           <Text style={styles.reportIcon}>{badge.icon}</Text>
           <View style={styles.idContainer}>
@@ -64,10 +74,13 @@ export const HistoryScreenView: React.FC = () => {
         
         <View style={styles.divider} />
         
-        <Text style={styles.coordinateText}>
-          📍 Koordinat Lapangan: [{item.location.coordinates[1].toFixed(5)}, {item.location.coordinates[0].toFixed(5)}]
-        </Text>
-      </View>
+        <View style={styles.cardFooter}>
+          <Text style={styles.coordinateText}>
+            📍 [{item.location.coordinates[1].toFixed(4)}, {item.location.coordinates[0].toFixed(4)}]
+          </Text>
+          <Text style={styles.detailHintText}>📸 Lihat Detail &gt;</Text>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -102,6 +115,15 @@ export const HistoryScreenView: React.FC = () => {
           }
         />
       )}
+
+      <ReportDetailModal
+        visible={isModalVisible}
+        report={selectedReport}
+        onClose={() => {
+          setIsModalVisible(false);
+          setSelectedReport(null);
+        }}
+      />
     </View>
   );
 };
@@ -175,6 +197,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: EcoWarnColors.textSecondary,
     fontWeight: '500',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  detailHintText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: EcoWarnColors.primary,
   },
   emptyContainer: {
     alignItems: 'center',

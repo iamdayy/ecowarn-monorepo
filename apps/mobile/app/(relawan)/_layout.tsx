@@ -1,28 +1,54 @@
-import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
+import { Tabs } from 'expo-router';
 import React from 'react';
-
-import { renderAndroidIcon } from '@/components/ui/native-tab-icon';
+import { Ionicons } from '@expo/vector-icons';
+import { FloatingTabBar } from '@/components/ui/FloatingTabBar';
 import { EcoWarnColors } from '@/constants/theme';
 
 export default function RelawanLayout() {
   return (
-    <NativeTabs tintColor={EcoWarnColors.primaryLight}>
-      <NativeTabs.Trigger name="index">
-        <Label>Peta Spasial</Label>
-        <Icon sf="map.fill" androidSrc={renderAndroidIcon('map')} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="scanner">
-        <Label>Pemindai AI</Label>
-        <Icon sf="camera.fill" androidSrc={renderAndroidIcon('photo-camera')} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="history">
-        <Label>Riwayat Laporan</Label>
-        <Icon sf="doc.text.fill" androidSrc={renderAndroidIcon('history')} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Label>Profil Relawan</Label>
-        <Icon sf="shield.fill" androidSrc={renderAndroidIcon('security')} />
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <Tabs
+      tabBar={(props) => <FloatingTabBar {...props} />}
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: EcoWarnColors.primary,
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          tabBarLabel: 'Peta',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'map' : 'map-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="scanner"
+        options={{
+          tabBarLabel: 'Pemindai',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'camera' : 'camera-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="history"
+        options={{
+          tabBarLabel: 'Riwayat',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'time' : 'time-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          tabBarLabel: 'Profil',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'shield-checkmark' : 'shield-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+    </Tabs>
   );
 }

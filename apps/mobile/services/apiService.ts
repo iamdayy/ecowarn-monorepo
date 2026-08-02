@@ -33,6 +33,7 @@ export interface ServerReportResponse {
     coordinates: [number, number]; // [longitude, latitude]
   };
   severity: 'Ringan' | 'Sedang' | 'Kritis';
+  photoUrl?: string;
   createdAt?: string;
 }
 

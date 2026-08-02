@@ -24,6 +24,8 @@ interface ScannerHUDOverlayProps {
   onCycleZoom?: () => void;
   isHapticMuted?: boolean;
   onToggleHapticMute?: () => void;
+  isLocked?: boolean;
+  onToggleLock?: () => void;
 }
 
 const RETICLE_SIZE = 260;
@@ -46,6 +48,8 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
   onCycleZoom,
   isHapticMuted = false,
   onToggleHapticMute,
+  isLocked = false,
+  onToggleLock,
 }) => {
   const insets = useSafeAreaInsets();
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
@@ -332,6 +336,15 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
               <Text style={styles.controlPillText}>{isHapticMuted ? '🔕 SILENT' : '🔔 ALERT ON'}</Text>
             </TouchableOpacity>
           )}
+          {onToggleLock && (
+            <TouchableOpacity
+              style={[styles.controlPill, isLocked && styles.controlPillLocked]}
+              onPress={onToggleLock}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.controlPillText}>{isLocked ? '🔒 TERKUNCI' : '🔓 KUNCI DETEKSI'}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -549,6 +562,10 @@ const styles = StyleSheet.create({
   controlPillMuted: {
     backgroundColor: 'rgba(239, 68, 68, 0.7)',
     borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  controlPillLocked: {
+    backgroundColor: 'rgba(16, 185, 129, 0.85)',
+    borderColor: 'rgba(255, 255, 255, 0.8)',
   },
   controlPillText: {
     color: EcoWarnColors.textOnPrimary,
