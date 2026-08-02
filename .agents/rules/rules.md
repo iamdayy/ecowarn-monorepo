@@ -26,9 +26,6 @@ trigger: always_on
   - `camelCase` untuk variabel, fungsi, dan instansiasi.
   - `PascalCase` untuk komponen React Native dan Kelas Model Database (Mongoose).
   - `UPPER_SNAKE_CASE` untuk konstanta global.
-- **Aturan Eksekusi Kecerdasan Buatan (AI):**
-  - Pemrosesan model `.tflite` HARUS dilakukan sepenuhnya di sisi klien (*Client-Side Inference*) menggunakan *Frame Processors* dari Vision Camera.
-  - DILARANG mengirimkan gambar (*frame*) utuh ke peladen. Hanya kirim *payload* berupa titik koordinat dan status keparahan.
 - **Aturan Database & Geospasial:**
   - Wajib menggunakan kueri bawaan MongoDB seperti `$geoWithin` atau `$nearSphere` untuk melakukan penyaringan radius spasial.
 - **Penanganan Galat (Error Handling):**

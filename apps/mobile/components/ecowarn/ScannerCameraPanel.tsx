@@ -6,7 +6,7 @@ import { NitroModules } from 'react-native-nitro-modules';
 import { useResizePlugin } from 'vision-camera-resize-plugin';
 import * as Haptics from 'expo-haptics';
 import { TrashVolumeStatus, ReportPayload, SpatialCoordinates, BoundingBox } from '../../types/ecowarn';
-import { calculateBoundingBoxRatio, determineSeverityStatus } from '../../utils/volumeCalculator';
+import { processYoloInference } from '../../utils/yoloPostProcessor';
 import { useTrashDetectorModel } from '../../services/aiService';
 import { ScannerHUDOverlay } from './ScannerHUDOverlay';
 import { ScannerActionFooter } from './ScannerActionFooter';
@@ -158,13 +158,14 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
 
   // Client-Side Frame Processor (DILARANG mengunduh/mengirim gambar ke peladen)
   // =====================================================================
-  // STANDAR RESMI MARC ROUSAVY + OPTIMASI ALGORITMA ECOWARN:
-  // 1. Dilarang memakai runAsync karena resize() memakai OpenGL ES context
-  //    yang terikat pada thread utama kamera (mengeliminasi crash/force close).
+  // STANDAR RESMI MARC ROUSAVY (VISION CAMERA V4 + FAST TFLITE):
+  // 1. Wajib mengeksekusi secara SINKRON (runSync) di dalam Camera Worklet:
+  //    - resize() memakai OpenGL ES context yang terikat pada thread kamera utama.
+  //    - Hasil resize adalah ArrayBuffer yang dilarang melintasi batas memori
+  //      antar-thread ("Array buffers are not supported as shared values").
   // 2. Wajib menggunakan .slice(byteOffset, byteOffset + byteLength) agar buffer
   //    memiliki aljika memori yang tepat saat masuk ke neural processing TFLite.
-  // 3. Mengkombinasikan pola resmi ini dengan Cache-Friendly Matrix Traversal,
-  //    waktu evaluasi 8.400 kandidat melompat cepat dari ~200ms ke < 2ms!
+  // 3. Mengombinasikan pola resmi ini dengan Cache-Friendly Matrix Traversal!
   // =====================================================================
   const frameProcessor = useFrameProcessor(
     (frame: Frame) => {
@@ -177,6 +178,8 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
           // Unbox model secara resmi di Worklet thread
           const tflite = boxedModel.unbox();
 
+          console.log(inputConfig)
+          console.log(outputConfig)
           // 1. GPU Resize di Camera Worklet Thread (< 1 milidetik via EGL Shader)
           const resized = resize(frame, {
             scale: { width: inputConfig.width, height: inputConfig.height },
@@ -192,98 +195,22 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
           );
           bufferLength = inputBuffer.byteLength;
 
-          // 3. Eksekusi TFLite syncraonal (stabil tanpa antrean gila)
+          // 3. Eksekusi TFLite sinkronal resmi sesuai standar Marc Rousavy & NitroModules
           const outputs = tflite.runSync([inputBuffer as ArrayBuffer]);
           if (outputs && outputs.length > 0 && outputs[0] != null) {
             const outputMatrix = new Float32Array(outputs[0]);
-            const numCandidates = outputConfig.numCandidates;
-            const numAttributes = outputConfig.numAttributes;
-            const isTransposed = outputConfig.isTransposed;
 
-            let maxScore = 0.0;
-            let bestX = 0.0;
-            let bestY = 0.0;
-            let bestWidth = 0.0;
-            let bestHeight = 0.0;
+            // 4. Eksekusi Post-Processing AI secara modular & bersih (Clean Code - SRP)
+            const detection = processYoloInference(
+              outputMatrix,
+              inputConfig,
+              outputConfig,
+              frame.width,
+              frame.height,
+              CONFIDENCE_THRESHOLD
+            );
 
-            // 4. CACHE-FRIENDLY MATRIX TRAVERSAL (OPTIMASI EKSTREM HERMES CPU)
-            // Menghilangkan 42.000 perkalian & pengecekan ternary di dalam loop!
-            // Menjadikan eksekusi pasca-proses selesai sekian < 2 milidetik!
-            if (isTransposed) {
-              const offsetX = 0;
-              const offsetY = numCandidates;
-              const offsetW = numCandidates * 2;
-              const offsetH = numCandidates * 3;
-
-              for (let c = 4; c < numAttributes; c++) {
-                const offsetC = numCandidates * c;
-                for (let i = 0; i < numCandidates; i++) {
-                  const score = outputMatrix[offsetC + i]!;
-                  if (score > maxScore) {
-                    const w = outputMatrix[offsetW + i]!;
-                    const h = outputMatrix[offsetH + i]!;
-
-                    // Filter anomali bounding box raksasa (>92% dari ukuran layar)
-                    const normWTest = w > 1.0 ? w / inputConfig.width : w;
-                    const normHTest = h > 1.0 ? h / inputConfig.height : h;
-                    if (normWTest > 0.92 && normHTest > 0.92 && score < 0.85) {
-                      continue;
-                    }
-
-                    maxScore = score;
-                    bestX = outputMatrix[offsetX + i]!;
-                    bestY = outputMatrix[offsetY + i]!;
-                    bestWidth = w;
-                    bestHeight = h;
-                  }
-                }
-              }
-            } else {
-              for (let i = 0; i < numCandidates; i++) {
-                const baseIdx = i * numAttributes;
-                for (let c = 4; c < numAttributes; c++) {
-                  const score = outputMatrix[baseIdx + c]!;
-                  if (score > maxScore) {
-                    const w = outputMatrix[baseIdx + 2]!;
-                    const h = outputMatrix[baseIdx + 3]!;
-
-                    const normWTest = w > 1.0 ? w / inputConfig.width : w;
-                    const normHTest = h > 1.0 ? h / inputConfig.height : h;
-                    if (normWTest > 0.92 && normHTest > 0.92 && score < 0.85) {
-                      continue;
-                    }
-
-                    maxScore = score;
-                    bestX = outputMatrix[baseIdx + 0]!;
-                    bestY = outputMatrix[baseIdx + 1]!;
-                    bestWidth = w;
-                    bestHeight = h;
-                  }
-                }
-              }
-            }
-
-            if (maxScore >= CONFIDENCE_THRESHOLD) {
-              const boxWidthPx = bestWidth > 1.0 ? (bestWidth / inputConfig.width) * frame.width : bestWidth * frame.width;
-              const boxHeightPx = bestHeight > 1.0 ? (bestHeight / inputConfig.height) * frame.height : bestHeight * frame.height;
-              const ratio = calculateBoundingBoxRatio(boxWidthPx, boxHeightPx, frame.width, frame.height);
-              const severity = determineSeverityStatus(ratio);
-
-              // Konversi koordinat pusat ke sudut kiri atas dalam skala normalisasi 0..1 untuk HUD
-              const normCx = bestX > 1.0 ? bestX / inputConfig.width : bestX;
-              const normCy = bestY > 1.0 ? bestY / inputConfig.height : bestY;
-              const normW = bestWidth > 1.0 ? bestWidth / inputConfig.width : bestWidth;
-              const normH = bestHeight > 1.0 ? bestHeight / inputConfig.height : bestHeight;
-
-              const normX = Math.max(0, Math.min(1, normCx - normW / 2));
-              const normY = Math.max(0, Math.min(1, normCy - normH / 2));
-              const validW = Math.max(0, Math.min(1 - normX, normW));
-              const validH = Math.max(0, Math.min(1 - normY, normH));
-
-              updateDetectionResult(ratio, severity, { x: normX, y: normY, width: validW, height: validH });
-            } else {
-              updateDetectionResult(0.0, 'Ringan', undefined);
-            }
+            updateDetectionResult(detection.ratio, detection.severity, detection.boundingBox);
           }
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);

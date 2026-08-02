@@ -91,13 +91,40 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
     }
   }, [isModelLoaded]);
 
-  // Handle pergeseran posisi Bounding Box agar transisi mulus antar frame TFLite
+  // =====================================================================
+  // KALIBRASI PRESISI KOORDINAT HUD (ASPECT-RATIO COVER MAPPING):
+  // Menyesuaikan koordinat normalisasi AI (dari sensor kamera standar 9:16)
+  // ke kontainer layar HP Android yang bervariasi (misal 20:9 atau 19.5:9)
+  // yang di-render dalam mode 'cover', mencegah pergeseran/miss-alignment!
+  // =====================================================================
   useEffect(() => {
     if (boundingBox && containerSize.width > 0 && containerSize.height > 0) {
-      const targetLeft = boundingBox.x * containerSize.width;
-      const targetTop = boundingBox.y * containerSize.height;
-      const targetWidth = boundingBox.width * containerSize.width;
-      const targetHeight = boundingBox.height * containerSize.height;
+      // Rasio layar saat ini vs Rasio standar sensor kamera Android (Portrait 9:16 = 0.5625)
+      const containerRatio = containerSize.width / containerSize.height;
+      const sensorRatio = 9 / 16;
+
+      let renderWidth = containerSize.width;
+      let renderHeight = containerSize.height;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (containerRatio < sensorRatio) {
+        // Layar lebih tinggi/panjang dari rasio sensor (Mode Cover memotong tepi kiri & kanan)
+        renderHeight = containerSize.height;
+        renderWidth = containerSize.height * sensorRatio;
+        offsetX = (containerSize.width - renderWidth) / 2;
+      } else {
+        // Layar lebih lebar dari rasio sensor (Mode Cover memotong tepi atas & bawah)
+        renderWidth = containerSize.width;
+        renderHeight = containerSize.width / sensorRatio;
+        offsetY = (containerSize.height - renderHeight) / 2;
+      }
+
+      // Kalkulasi koordinat presisi absolut pada layar UI
+      const targetLeft = offsetX + boundingBox.x * renderWidth;
+      const targetTop = offsetY + boundingBox.y * renderHeight;
+      const targetWidth = boundingBox.width * renderWidth;
+      const targetHeight = boundingBox.height * renderHeight;
 
       // Jika box baru muncul dari hidden (opacity 0), posisikan seketika lalu fade in
       if (boxOpacity.value === 0) {
@@ -105,10 +132,10 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
         boxTop.value = targetTop;
         boxWidth.value = targetWidth;
         boxHeight.value = targetHeight;
-        boxOpacity.value = withTiming(1, { duration: 160 });
+        boxOpacity.value = withTiming(1, { duration: 150 });
       } else {
-        // Transisi halus mengejar pergerakan objek (smooth target tracking)
-        const duration = 180;
+        // Transisi halus tersinkronisasi dengan 5 FPS Inference (200ms Anti-Jitter Tracking)
+        const duration = 200;
         const easing = Easing.out(Easing.cubic);
         boxLeft.value = withTiming(targetLeft, { duration, easing });
         boxTop.value = withTiming(targetTop, { duration, easing });
@@ -117,7 +144,7 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
       }
     } else {
       // Fade out begitu objek hilang / di bawah confidence threshold
-      boxOpacity.value = withTiming(0, { duration: 200 });
+      boxOpacity.value = withTiming(0, { duration: 180 });
     }
   }, [boundingBox, containerSize]);
 

@@ -166,7 +166,7 @@ export const setupForegroundMessageListener = (): (() => void) => {
           pressAction: {
             id: 'default',
           },
-          smallIcon: 'ic_notification',
+          smallIcon: 'ic_launcher',
         },
       });
     } catch (error) {

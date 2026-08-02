@@ -8,22 +8,53 @@ let firebaseApp: App | null = null;
 
 /**
  * Inisialisasi Firebase Admin SDK untuk mengirim push notification FCM dari peladen.
- * Memerlukan file serviceAccountKey.json di root folder apps/api.
+ * Telah dioptimasi untuk lingkungan Serverless (Vercel) maupun pengembangan lokal.
  */
 export const initFirebase = (): void => {
   try {
-    const serviceAccountPath = path.resolve(__dirname, '../../serviceAccountKey.json');
-
-    if (!fs.existsSync(serviceAccountPath)) {
-      console.warn(
-        '[Firebase Admin] File serviceAccountKey.json tidak ditemukan. ' +
-        'Push notification FCM tidak akan aktif. ' +
-        'Download dari Firebase Console → Project Settings → Service Accounts.'
-      );
+    // Mencegah inisialisasi ganda pada lifecycle Serverless Vercel / Hot reload
+    if (getApps().length > 0) {
+      console.log('[Firebase Admin] SDK sudah aktif (Singleton / Serverless reuse).');
       return;
     }
 
-    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
+    let serviceAccount: Record<string, string> | null = null;
+
+    // Prioritas 1: Baca Kredensial dari Environment Variables (Wajib untuk Vercel Production)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      try {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+      } catch (e) {
+        console.error('[Error Firebase Admin] Parsing FIREBASE_SERVICE_ACCOUNT_JSON gagal:', e);
+      }
+    } else if (
+      process.env.FIREBASE_PROJECT_ID &&
+      process.env.FIREBASE_CLIENT_EMAIL &&
+      process.env.FIREBASE_PRIVATE_KEY
+    ) {
+      serviceAccount = {
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        // Pada Vercel Env, baris baru (\n) di private key kerap ter-escape menjadi \\n
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      };
+    }
+
+    // Prioritas 2: Fallback ke file fisik lokal serviceAccountKey.json (untuk Local Development)
+    if (!serviceAccount) {
+      const serviceAccountPath = path.resolve(__dirname, '../../serviceAccountKey.json');
+      if (fs.existsSync(serviceAccountPath)) {
+        serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
+      }
+    }
+
+    if (!serviceAccount) {
+      console.warn(
+        '[Firebase Admin] Kredensial tidak ditemukan (File serviceAccountKey.json / Env Vercel kosong). ' +
+        'Push notification FCM tidak akan aktif.'
+      );
+      return;
+    }
 
     firebaseApp = initializeApp({
       credential: cert(serviceAccount),
