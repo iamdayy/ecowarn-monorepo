@@ -6,6 +6,7 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { connectDatabase } from './config/database';
 import { initSocket } from './config/socket';
+import { initFirebase } from './config/firebase';
 import reportRoutes from './routes/reportRoutes';
 import authRoutes from './routes/authRoutes';
 
@@ -33,6 +34,9 @@ app.get('/health', (_req: Request, res: Response) => {
 // Inisialisasi Server & Database
 const startServer = async (): Promise<void> => {
   try {
+    // Inisialisasi Firebase Admin SDK untuk push notification FCM
+    initFirebase();
+
     await connectDatabase();
     httpServer.listen(PORT, () => {
       console.log(`[Server] Peladen EcoWarn berjalan di port ${PORT} (HTTP & WebSockets)`);

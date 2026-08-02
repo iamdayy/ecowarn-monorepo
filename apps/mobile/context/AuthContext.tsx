@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, LoginPayload, RegisterPayload } from '../types/auth';
 import { loginUser, registerUser } from '../services/authService';
+import { initializeFcm, deleteFcmTokenFromServer, onTokenRefresh } from '../services/notificationService';
 
 const STORAGE_TOKEN_KEY = '@ecowarn_jwt_token';
 const STORAGE_USER_KEY = '@ecowarn_user_data';
@@ -21,6 +22,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const tokenRefreshUnsubRef = useRef<(() => void) | null>(null);
+
+  /**
+   * Mendaftarkan listener token refresh FCM.
+   * Token FCM bisa berubah sewaktu-waktu (reinstall, clear data, dll).
+   */
+  const startTokenRefreshListener = (authToken: string): void => {
+    // Hapus listener sebelumnya jika ada
+    if (tokenRefreshUnsubRef.current) {
+      tokenRefreshUnsubRef.current();
+    }
+    tokenRefreshUnsubRef.current = onTokenRefresh(authToken);
+  };
 
   // Membangkitkan sesi pengguna yang tersimpan lokal saat aplikasi dibuka
   useEffect(() => {
@@ -34,6 +48,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setToken(storedToken);
           setUser(parsedUser);
           console.log(`[Auth Context] Sesi dipulihkan untuk pengguna: ${parsedUser.name} (${parsedUser.role})`);
+
+          // Re-register FCM token saat restore session (token bisa berubah setelah app update/reinstall)
+          await initializeFcm(storedToken);
+          startTokenRefreshListener(storedToken);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -44,6 +62,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     restoreSession();
+
+    // Cleanup token refresh listener saat unmount
+    return () => {
+      if (tokenRefreshUnsubRef.current) {
+        tokenRefreshUnsubRef.current();
+      }
+    };
   }, []);
 
   const login = async (payload: LoginPayload): Promise<void> => {
@@ -57,6 +82,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setToken(authResponse.token);
       setUser(authResponse.user);
       console.log(`[Auth Context] Login berhasil: ${authResponse.user.name} (${authResponse.user.role})`);
+
+      // Inisialisasi FCM setelah login berhasil: request permission → get token → register ke server
+      await initializeFcm(authResponse.token);
+      startTokenRefreshListener(authResponse.token);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[Error Auth Context - login] Proses login gagal: ${errorMessage}`);
@@ -77,6 +106,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setToken(authResponse.token);
       setUser(authResponse.user);
       console.log(`[Auth Context] Registrasi berhasil: ${authResponse.user.name} (${authResponse.user.role})`);
+
+      // Inisialisasi FCM setelah registrasi berhasil
+      await initializeFcm(authResponse.token);
+      startTokenRefreshListener(authResponse.token);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[Error Auth Context - register] Proses registrasi gagal: ${errorMessage}`);
@@ -89,6 +122,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = async (): Promise<void> => {
     try {
       setIsLoading(true);
+
+      // Hapus token FCM dari peladen sebelum menghapus sesi lokal
+      if (token) {
+        await deleteFcmTokenFromServer(token);
+      }
+
+      // Hentikan listener token refresh
+      if (tokenRefreshUnsubRef.current) {
+        tokenRefreshUnsubRef.current();
+        tokenRefreshUnsubRef.current = null;
+      }
+
       await AsyncStorage.removeItem(STORAGE_TOKEN_KEY);
       await AsyncStorage.removeItem(STORAGE_USER_KEY);
       setToken(null);

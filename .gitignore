@@ -2,3 +2,7 @@ node_modules
 dist
 .env
 .env.*
+
+# Firebase credentials (JANGAN dicommit — berisi private key)
+serviceAccountKey.json
+google-services.json

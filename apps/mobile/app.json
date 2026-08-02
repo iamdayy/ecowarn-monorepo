@@ -1,18 +1,19 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "ecowarn",
+    "slug": "ecowarn",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "ecowarn",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.mobile"
+      "bundleIdentifier": "com.daydev.ecowarn"
     },
     "android": {
+      "googleServicesFile": "./android/app/google-services.json",
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyAer05QheuYmseHdAtQzGfKDocl00Kz8l0"
@@ -26,7 +27,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.mobile"
+      "package": "com.daydev.ecowarn"
     },
     "web": {
       "output": "static",
@@ -34,6 +35,8 @@
     },
     "plugins": [
       "expo-router",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
       [
         "react-native-vision-camera",
         {
