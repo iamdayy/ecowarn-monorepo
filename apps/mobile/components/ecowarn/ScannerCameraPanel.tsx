@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet, Alert, AppState, AppStateStatus } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { Camera, useCameraDevice, useFrameProcessor, runAtTargetFps, Frame } from 'react-native-vision-camera';
 import { Worklets } from 'react-native-worklets-core';
 import { NitroModules } from 'react-native-nitro-modules';
@@ -14,8 +15,8 @@ import { UnauthorizedCameraView } from './UnauthorizedCameraView';
 
 // Inference FPS disetel ke 5 (200ms) agar seimbang antara laju deteksi dan kehalusan preview 60 FPS
 const TARGET_INFERENCE_FPS = 5;
-// Threshold 0.40 untuk memblokir false-positive dari tekstur latar belakang
-const CONFIDENCE_THRESHOLD = 0.40;
+// Threshold 0.45 untuk memblokir false-positive dari tekstur latar belakang
+const CONFIDENCE_THRESHOLD = 0.45;
 
 // =====================================================================
 // OPTIMASI PERFORMA PREVIEW KAMERA ANDROID:
@@ -27,22 +28,27 @@ const CONFIDENCE_THRESHOLD = 0.40;
 const MemoizedCameraView = React.memo(({
   device,
   frameProcessor,
+  isActive,
   torch = 'off',
   zoom = 1,
 }: {
   device: React.ComponentProps<typeof Camera>['device'];
   frameProcessor: React.ComponentProps<typeof Camera>['frameProcessor'];
+  isActive: boolean;
   torch?: 'on' | 'off';
   zoom?: number;
 }) => (
   <Camera
     style={StyleSheet.absoluteFill}
     device={device}
-    isActive={true}
+    isActive={isActive}
     pixelFormat="yuv"
-    frameProcessor={frameProcessor}
-    torch={torch}
+    frameProcessor={isActive ? frameProcessor : undefined}
+    torch={isActive ? torch : 'off'}
     zoom={zoom}
+    onError={(error) => {
+      console.warn(`[Camera Lifecycle] Galat system kamera: ${error.code} - ${error.message}`);
+    }}
   />
 ));
 MemoizedCameraView.displayName = 'MemoizedCameraView';
@@ -65,6 +71,21 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   const [detectedBox, setDetectedBox] = useState<BoundingBox | undefined>(undefined);
   const [isReporting, setIsReporting] = useState<boolean>(false);
   const { resize } = useResizePlugin();
+
+  // Lifecycle & Navigation Focus Tracking (Mencegah kamera berjalan saat layar mati atau pindah halaman/tab)
+  const isFocused = useIsFocused();
+  const [isForeground, setIsForeground] = useState<boolean>(AppState.currentState === 'active');
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      setIsForeground(nextAppState === 'active');
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  const isCameraActive = isFocused && isForeground && hasPermission;
 
   // State kontrol baru (Torch, Zoom, Silent Haptic Mode)
   const [isTorchOn, setIsTorchOn] = useState<boolean>(false);
@@ -178,8 +199,6 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
           // Unbox model secara resmi di Worklet thread
           const tflite = boxedModel.unbox();
 
-          console.log(inputConfig)
-          console.log(outputConfig)
           // 1. GPU Resize di Camera Worklet Thread (< 1 milidetik via EGL Shader)
           const resized = resize(frame, {
             scale: { width: inputConfig.width, height: inputConfig.height },
@@ -209,6 +228,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
               frame.height,
               CONFIDENCE_THRESHOLD
             );
+            console.log('detection', detection)
 
             updateDetectionResult(detection.ratio, detection.severity, detection.boundingBox);
           }
@@ -261,6 +281,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
       <MemoizedCameraView
         device={device}
         frameProcessor={frameProcessor}
+        isActive={isCameraActive}
         torch={isTorchOn ? 'on' : 'off'}
         zoom={zoomLevel}
       />

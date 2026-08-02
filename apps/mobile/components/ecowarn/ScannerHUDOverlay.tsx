@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, LayoutChangeEvent, TouchableOpacity } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -64,6 +64,10 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
   const boxHeight = useSharedValue(0);
   const boxOpacity = useSharedValue(0);
 
+  // Referensi riwayat posisi box untuk Temporal Smoothing (EMA) & Anti-Flicker Hysteresis
+  const prevCoordsRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (isModelLoaded) {
       pulseOpacity.value = withRepeat(
@@ -99,6 +103,12 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
   // =====================================================================
   useEffect(() => {
     if (boundingBox && containerSize.width > 0 && containerSize.height > 0) {
+      // Buka gembok timer penghapus box jika objek kembali terdeteksi
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+
       // Rasio layar saat ini vs Rasio standar sensor kamera Android (Portrait 9:16 = 0.5625)
       const containerRatio = containerSize.width / containerSize.height;
       const sensorRatio = 9 / 16;
@@ -121,30 +131,68 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
       }
 
       // Kalkulasi koordinat presisi absolut pada layar UI
-      const targetLeft = offsetX + boundingBox.x * renderWidth;
-      const targetTop = offsetY + boundingBox.y * renderHeight;
-      const targetWidth = boundingBox.width * renderWidth;
-      const targetHeight = boundingBox.height * renderHeight;
+      const rawLeft = offsetX + boundingBox.x * renderWidth;
+      const rawTop = offsetY + boundingBox.y * renderHeight;
+      const rawWidth = boundingBox.width * renderWidth;
+      const rawHeight = boundingBox.height * renderHeight;
+
+      // Batasi koordinat agar tidak pernah melimpah ke luar bingkai layar HP (Viewport Clamping)
+      const targetLeft = Math.max(0, Math.min(containerSize.width - 20, rawLeft));
+      const targetTop = Math.max(0, Math.min(containerSize.height - 20, rawTop));
+      const targetWidth = Math.min(containerSize.width - targetLeft, Math.max(20, rawWidth));
+      const targetHeight = Math.min(containerSize.height - targetTop, Math.max(20, rawHeight));
+
+      // =====================================================================
+      // TEMPORAL SMOOTHING (LOW-PASS FILTER / EMA):
+      // Meredam getaran (jitter) antar-frame akibat fluktuasi saraf AI YOLO.
+      // Jika jarak perpindahan < 150px, aplikasikan pelembutan 65% ke frame lama.
+      // =====================================================================
+      let finalLeft = targetLeft;
+      let finalTop = targetTop;
+      let finalWidth = targetWidth;
+      let finalHeight = targetHeight;
+
+      if (prevCoordsRef.current) {
+        const dist = Math.hypot(targetLeft - prevCoordsRef.current.left, targetTop - prevCoordsRef.current.top);
+        if (dist < 150) {
+          const alpha = 0.35; // 35% frame baru + 65% retensi posisi lama (anti getar/mulus)
+          finalLeft = prevCoordsRef.current.left * (1 - alpha) + targetLeft * alpha;
+          finalTop = prevCoordsRef.current.top * (1 - alpha) + targetTop * alpha;
+          finalWidth = prevCoordsRef.current.width * (1 - alpha) + targetWidth * alpha;
+          finalHeight = prevCoordsRef.current.height * (1 - alpha) + targetHeight * alpha;
+        }
+      }
+      prevCoordsRef.current = { left: finalLeft, top: finalTop, width: finalWidth, height: finalHeight };
 
       // Jika box baru muncul dari hidden (opacity 0), posisikan seketika lalu fade in
       if (boxOpacity.value === 0) {
-        boxLeft.value = targetLeft;
-        boxTop.value = targetTop;
-        boxWidth.value = targetWidth;
-        boxHeight.value = targetHeight;
-        boxOpacity.value = withTiming(1, { duration: 150 });
+        boxLeft.value = finalLeft;
+        boxTop.value = finalTop;
+        boxWidth.value = finalWidth;
+        boxHeight.value = finalHeight;
+        boxOpacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.quad) });
       } else {
-        // Transisi halus tersinkronisasi dengan 5 FPS Inference (200ms Anti-Jitter Tracking)
-        const duration = 200;
+        // Transisi halus tersinkronisasi dengan 5 FPS Inference
+        const duration = 220;
         const easing = Easing.out(Easing.cubic);
-        boxLeft.value = withTiming(targetLeft, { duration, easing });
-        boxTop.value = withTiming(targetTop, { duration, easing });
-        boxWidth.value = withTiming(targetWidth, { duration, easing });
-        boxHeight.value = withTiming(targetHeight, { duration, easing });
+        boxLeft.value = withTiming(finalLeft, { duration, easing });
+        boxTop.value = withTiming(finalTop, { duration, easing });
+        boxWidth.value = withTiming(finalWidth, { duration, easing });
+        boxHeight.value = withTiming(finalHeight, { duration, easing });
       }
     } else {
-      // Fade out begitu objek hilang / di bawah confidence threshold
-      boxOpacity.value = withTiming(0, { duration: 180 });
+      // =====================================================================
+      // ANTI-FLICKER HYSTERESIS PERSISTENCE:
+      // Tahan boks selama 400ms (2 frame inferensi) saat skor AI berkedut sementara
+      // di bawah threshold, mencegah boks berkedip hilang-muncul cepat (blinker).
+      // =====================================================================
+      if (!hideTimerRef.current && boxOpacity.value > 0) {
+        hideTimerRef.current = setTimeout(() => {
+          boxOpacity.value = withTiming(0, { duration: 250 });
+          prevCoordsRef.current = null;
+          hideTimerRef.current = null;
+        }, 400);
+      }
     }
   }, [boundingBox, containerSize]);
 

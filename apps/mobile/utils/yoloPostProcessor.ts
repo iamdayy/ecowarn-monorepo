@@ -47,7 +47,7 @@ export const processYoloInference = (
   let bestWidth = 0.0;
   let bestHeight = 0.0;
 
-  // Cache-Friendly Matrix Traversal (Optimasi Ekstrem Hermes CPU Worklet)
+  // Traversal & Adaptive Tensor Decoder (End2End NMS vs Raw YOLO)
   if (isTransposed) {
     const offsetX = 0;
     const offsetY = numCandidates;
@@ -59,65 +59,131 @@ export const processYoloInference = (
       for (let i = 0; i < numCandidates; i++) {
         const score = outputMatrix[offsetC + i]!;
         if (score > maxScore) {
-          const w = outputMatrix[offsetW + i]!;
-          const h = outputMatrix[offsetH + i]!;
+          const raw0 = outputMatrix[offsetX + i]!;
+          const raw1 = outputMatrix[offsetY + i]!;
+          const raw2 = outputMatrix[offsetW + i]!;
+          const raw3 = outputMatrix[offsetH + i]!;
 
-          // Filter anomali bounding box raksasa (>96% dari ukuran layar)
-          const normWTest = w > 1.0 ? w / inputConfig.width : w;
-          const normHTest = h > 1.0 ? h / inputConfig.height : h;
-          if (normWTest > 0.96 && normHTest > 0.96 && score < 0.70) {
-            continue;
+          let xmin = 0, ymin = 0, boxW = 0, boxH = 0;
+
+          // Deteksi Format: End2End NMS TF [y1, x1, y2, x2] vs Raw YOLO [cx, cy, w, h]
+          if (raw2 > raw0 && raw3 > raw1 && raw2 <= inputConfig.width * 1.5) {
+            // Format TensorFlow NMS Corner Coordinates [y1, x1, y2, x2] (Row-Major Order)
+            ymin = raw0 > 1.0 ? raw0 / inputConfig.height : raw0;
+            xmin = raw1 > 1.0 ? raw1 / inputConfig.width : raw1;
+            const ymax = raw2 > 1.0 ? raw2 / inputConfig.height : raw2;
+            const xmax = raw3 > 1.0 ? raw3 / inputConfig.width : raw3;
+            boxW = xmax - xmin;
+            boxH = ymax - ymin;
+          } else {
+            // Format Center Coordinates [cx, cy, w, h]
+            const normW = raw2 > 1.0 ? raw2 / inputConfig.width : raw2;
+            const normH = raw3 > 1.0 ? raw3 / inputConfig.height : raw3;
+            const normCx = raw0 > 1.0 ? raw0 / inputConfig.width : raw0;
+            const normCy = raw1 > 1.0 ? raw1 / inputConfig.height : raw1;
+            xmin = normCx - normW / 2;
+            ymin = normCy - normH / 2;
+            boxW = normW;
+            boxH = normH;
           }
 
+          if (boxW > 0.92 && boxH > 0.92 && score < 0.75) continue;
+
           maxScore = score;
-          bestX = outputMatrix[offsetX + i]!;
-          bestY = outputMatrix[offsetY + i]!;
-          bestWidth = w;
-          bestHeight = h;
+          bestX = xmin;
+          bestY = ymin;
+          bestWidth = boxW;
+          bestHeight = boxH;
         }
       }
     }
   } else {
+    // Format [1, 300, 6]
     for (let i = 0; i < numCandidates; i++) {
       const baseIdx = i * numAttributes;
-      for (let c = 4; c < numAttributes; c++) {
-        const score = outputMatrix[baseIdx + c]!;
-        if (score > maxScore) {
-          const w = outputMatrix[baseIdx + 2]!;
-          const h = outputMatrix[baseIdx + 3]!;
 
-          const normWTest = w > 1.0 ? w / inputConfig.width : w;
-          const normHTest = h > 1.0 ? h / inputConfig.height : h;
-          if (normWTest > 0.96 && normHTest > 0.96 && score < 0.70) {
-            continue;
+      // Cek apakah bentuknya End2End NMS [y1, x1, y2, x2, score, class_id]
+      const isEnd2EndNms = numCandidates === 300 && numAttributes === 6;
+      const score = isEnd2EndNms ? outputMatrix[baseIdx + 4]! : 0;
+
+      if (isEnd2EndNms) {
+        if (score > maxScore) {
+          const raw0 = outputMatrix[baseIdx + 0]!;
+          const raw1 = outputMatrix[baseIdx + 1]!;
+          const raw2 = outputMatrix[baseIdx + 2]!;
+          const raw3 = outputMatrix[baseIdx + 3]!;
+
+          let xmin = 0, ymin = 0, boxW = 0, boxH = 0;
+
+          if (raw2 > raw0 && raw3 > raw1) {
+            // Format TensorFlow NMS Corner Coordinates [y1, x1, y2, x2] (Row-Major Order)
+            ymin = raw0 > 1.0 ? raw0 / inputConfig.height : raw0;
+            xmin = raw1 > 1.0 ? raw1 / inputConfig.width : raw1;
+            const ymax = raw2 > 1.0 ? raw2 / inputConfig.height : raw2;
+            const xmax = raw3 > 1.0 ? raw3 / inputConfig.width : raw3;
+            boxW = xmax - xmin;
+            boxH = ymax - ymin;
+          } else {
+            // Format Center Coordinates [cx, cy, w, h]
+            const normW = raw2 > 1.0 ? raw2 / inputConfig.width : raw2;
+            const normH = raw3 > 1.0 ? raw3 / inputConfig.height : raw3;
+            const normCx = raw0 > 1.0 ? raw0 / inputConfig.width : raw0;
+            const normCy = raw1 > 1.0 ? raw1 / inputConfig.height : raw1;
+            xmin = normCx - normW / 2;
+            ymin = normCy - normH / 2;
+            boxW = normW;
+            boxH = normH;
           }
 
+          if (boxW > 0.92 && boxH > 0.92 && score < 0.75) continue;
+
           maxScore = score;
-          bestX = outputMatrix[baseIdx + 0]!;
-          bestY = outputMatrix[baseIdx + 1]!;
-          bestWidth = w;
-          bestHeight = h;
+          bestX = xmin;
+          bestY = ymin;
+          bestWidth = boxW;
+          bestHeight = boxH;
+        }
+      } else {
+        // Standard Raw YOLO Multi-Class Loop
+        for (let c = 4; c < numAttributes; c++) {
+          const cScore = outputMatrix[baseIdx + c]!;
+          if (cScore > maxScore) {
+            const raw0 = outputMatrix[baseIdx + 0]!;
+            const raw1 = outputMatrix[baseIdx + 1]!;
+            const raw2 = outputMatrix[baseIdx + 2]!;
+            const raw3 = outputMatrix[baseIdx + 3]!;
+
+            const normW = raw2 > 1.0 ? raw2 / inputConfig.width : raw2;
+            const normH = raw3 > 1.0 ? raw3 / inputConfig.height : raw3;
+            const normCx = raw0 > 1.0 ? raw0 / inputConfig.width : raw0;
+            const normCy = raw1 > 1.0 ? raw1 / inputConfig.height : raw1;
+
+            const xmin = normCx - normW / 2;
+            const ymin = normCy - normH / 2;
+
+            if (normW > 0.92 && normH > 0.92 && cScore < 0.75) continue;
+
+            maxScore = cScore;
+            bestX = xmin;
+            bestY = ymin;
+            bestWidth = normW;
+            bestHeight = normH;
+          }
         }
       }
     }
   }
 
   if (maxScore >= confidenceThreshold) {
-    const boxWidthPx = bestWidth > 1.0 ? (bestWidth / inputConfig.width) * frameWidth : bestWidth * frameWidth;
-    const boxHeightPx = bestHeight > 1.0 ? (bestHeight / inputConfig.height) * frameHeight : bestHeight * frameHeight;
+    const boxWidthPx = bestWidth * frameWidth;
+    const boxHeightPx = bestHeight * frameHeight;
     const ratio = calculateBoundingBoxRatio(boxWidthPx, boxHeightPx, frameWidth, frameHeight);
     const severity = determineSeverityStatus(ratio);
 
-    // KONVERSI KOORDINAT PRESISI AKURAT (Top-Left corner X_min, Y_min):
-    const normCx = bestX > 1.0 ? bestX / inputConfig.width : bestX;
-    const normCy = bestY > 1.0 ? bestY / inputConfig.height : bestY;
-    const normW = bestWidth > 1.0 ? bestWidth / inputConfig.width : bestWidth;
-    const normH = bestHeight > 1.0 ? bestHeight / inputConfig.height : bestHeight;
-
-    const normX = Math.max(0, Math.min(1, normCx));
-    const normY = Math.max(0, Math.min(1, normCy));
-    const validW = Math.max(0, Math.min(1 - normX, normW));
-    const validH = Math.max(0, Math.min(1 - normY, normH));
+    const normX = Math.max(0, Math.min(1, bestX));
+    const normY = Math.max(0, Math.min(1, bestY));
+    const validW = Math.max(0, Math.min(1 - normX, bestWidth));
+    const validH = Math.max(0, Math.min(1 - normY, bestHeight));
 
     return {
       hasDetection: true,

@@ -4,9 +4,10 @@ const MODEL_FILE_NAME = 'ecowarn_trash_detector';
 
 export const useTrashDetectorModel = () => {
   try {
-    // Memuat model object detection dengan akselerasi GPU Android (Client-Side Inference)
-    // Akselerasi GPU memangkas waktu komputasi di bawah 10ms agar video preview 60 FPS bebas stutter!
-    const plugin = useTensorflowModel(require('../assets/ecowarn_trash_detector.tflite'), ['android-gpu']);
+    // Memuat model object detection dengan akselerasi CPU XNNPACK ARM SIMD (Client-Side Inference).
+    // Delegasi CPU XNNPACK ([]) dipilih demi stabilitas 100% pada operator konversi ONNX/NMS
+    // dan menghindari ketidakcocokan shader OpenCL pada akselerator ['android-gpu'].
+    const plugin = useTensorflowModel(require('../assets/ecowarn_trash_detector.tflite'), []);
     return plugin;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
