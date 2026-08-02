@@ -11,7 +11,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.daydev.ecowarn",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSCameraUsageDescription": "EcoWarn membutuhkan akses kamera untuk mendeteksi tumpukan sampah dan tingkat keparahan (AI Client-Side Inference)."
+      }
     },
     "android": {
       "googleServicesFile": "./google-services.json",
@@ -27,7 +30,10 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.daydev.ecowarn"
+      "package": "com.daydev.ecowarn",
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "output": "static",
@@ -69,7 +75,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "d4890d2b-3efa-434a-a182-be4a2f69055e"
+        "projectId": "098b5fb6-0311-41d8-b008-1a4245e32761"
       }
     }
   }
