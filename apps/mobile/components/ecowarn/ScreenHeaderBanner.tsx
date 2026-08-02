@@ -10,6 +10,8 @@ interface ScreenHeaderBannerProps {
   accentColor?: string;
   /** Elemen kustom di sisi kanan banner (opsional) */
   rightElement?: React.ReactNode;
+  /** Menghilangkan lengkungan radius pojok bawah banner agar rata saat bertemu elemen kanvas seperti Peta */
+  flatBottom?: boolean;
 }
 
 /**
@@ -22,6 +24,7 @@ export const ScreenHeaderBanner: React.FC<ScreenHeaderBannerProps> = ({
   subtitle,
   accentColor = EcoWarnColors.primary,
   rightElement,
+  flatBottom = false,
 }) => {
   const insets = useSafeAreaInsets();
 
@@ -33,6 +36,10 @@ export const ScreenHeaderBanner: React.FC<ScreenHeaderBannerProps> = ({
           backgroundColor: accentColor,
           paddingTop: insets.top + Spacing.md,
           shadowColor: accentColor,
+          ...(flatBottom && {
+            borderBottomLeftRadius: 0,
+            borderBottomRightRadius: 0,
+          }),
         },
       ]}
     >

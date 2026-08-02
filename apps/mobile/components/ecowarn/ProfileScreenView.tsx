@@ -1,14 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
+import { ScreenHeaderBanner } from './ScreenHeaderBanner';
 import { EcoWarnColors, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export const ProfileScreenView: React.FC = () => {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
 
   const handleLogout = () => {
     Alert.alert(
@@ -39,11 +38,17 @@ export const ProfileScreenView: React.FC = () => {
   const isRelawan = user.role === 'Relawan';
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.md }]}
-    >
-      <View style={styles.header}>
+    <View style={styles.container}>
+      <ScreenHeaderBanner
+        title="Profil Pengguna 👤"
+        subtitle={isRelawan ? 'Kontributor Aktif & Relawan Pemantau AI' : 'Warga Terotentikasi & Penerima Peringatan Dini'}
+        accentColor={EcoWarnColors.primary}
+      />
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.content}
+      >
+        <View style={styles.header}>
         <View style={[styles.avatarCircle, isRelawan ? styles.avatarRelawan : styles.avatarWarga]}>
           <Text style={styles.avatarIcon}>{isRelawan ? '🛡️' : '👤'}</Text>
         </View>
@@ -83,7 +88,8 @@ export const ProfileScreenView: React.FC = () => {
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
         <Text style={styles.logoutButtonText}>🚪 Keluar dari Akun (Logout)</Text>
       </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -91,6 +97,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: EcoWarnColors.surface,
+  },
+  scrollContainer: {
+    flex: 1,
   },
   content: {
     padding: Spacing.lg - 4,

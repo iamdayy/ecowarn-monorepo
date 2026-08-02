@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import * as Location from 'expo-location';
 import { InteractiveMap, MapReportItem } from './InteractiveMap';
+import { ScreenHeaderBanner } from './ScreenHeaderBanner';
+import { EcoWarnColors } from '../../constants/theme';
 import { SpatialCoordinates } from '../../types/ecowarn';
 import { fetchNearbyReports, ServerReportResponse } from '../../services/apiService';
 import {
@@ -12,7 +14,7 @@ import {
 
 export const MapScreenView: React.FC = () => {
   const [userLocation, setUserLocation] = useState<SpatialCoordinates>({
-    latitude: -6.200000, // Default: Jakarta
+    latitude: -6.200000,
     longitude: 106.816666,
   });
   const [activeReports, setActiveReports] = useState<MapReportItem[]>([]);
@@ -89,13 +91,21 @@ export const MapScreenView: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <ScreenHeaderBanner
+        title="Peta Spasial EcoWarn 🌍"
+        subtitle="Pemantauan titik rawan banjir rob & sumbatan sampah"
+        accentColor={EcoWarnColors.primary}
+        flatBottom={true}
+      />
       <InteractiveMap userLocation={userLocation} reports={activeReports} />
     </View>
   );
 };
 
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: EcoWarnColors.surface,
   },
 });

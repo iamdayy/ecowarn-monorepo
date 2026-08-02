@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, LayoutChangeEvent } from 'react-native';
+import { View, Text, StyleSheet, LayoutChangeEvent, TouchableOpacity } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -18,6 +18,12 @@ interface ScannerHUDOverlayProps {
   ratio: number;
   isModelLoaded: boolean;
   boundingBox?: BoundingBox;
+  isTorchOn?: boolean;
+  onToggleTorch?: () => void;
+  zoomLevel?: number;
+  onCycleZoom?: () => void;
+  isHapticMuted?: boolean;
+  onToggleHapticMute?: () => void;
 }
 
 const RETICLE_SIZE = 260;
@@ -27,13 +33,19 @@ const CORNER_THICKNESS = 3;
 /**
  * Head-Up Display overlay untuk layar Scanner AI.
  * Fitur: Dynamic Bounding Box dari hasil Client-Side Inference AI (TFLite),
- * animated pulse dot, scan-line vertikal, dan reticle interaktif.
+ * animated pulse dot, scan-line vertikal, dan reticle interaktif, serta floating action controls.
  */
 const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
   severity,
   ratio,
   isModelLoaded,
   boundingBox,
+  isTorchOn = false,
+  onToggleTorch,
+  zoomLevel = 1,
+  onCycleZoom,
+  isHapticMuted = false,
+  onToggleHapticMute,
 }) => {
   const insets = useSafeAreaInsets();
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
@@ -214,6 +226,37 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
         </View>
         <View style={styles.badgeWrapper}>
           <SeverityStatusBadge severity={severity} ratio={ratio} />
+        </View>
+
+        {/* === Horizontal Action Toolbar (Torch, Zoom, Mute/Haptic Toggle) === */}
+        <View style={styles.controlToolbar}>
+          {onToggleTorch && (
+            <TouchableOpacity
+              style={[styles.controlPill, isTorchOn && styles.controlPillActive]}
+              onPress={onToggleTorch}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.controlPillText}>{isTorchOn ? '⚡ FLASH ON' : '🔦 FLASH OFF'}</Text>
+            </TouchableOpacity>
+          )}
+          {onCycleZoom && (
+            <TouchableOpacity
+              style={styles.controlPill}
+              onPress={onCycleZoom}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.controlPillText}>{`🔍 ZOOM ${zoomLevel}x`}</Text>
+            </TouchableOpacity>
+          )}
+          {onToggleHapticMute && (
+            <TouchableOpacity
+              style={[styles.controlPill, isHapticMuted && styles.controlPillMuted]}
+              onPress={onToggleHapticMute}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.controlPillText}>{isHapticMuted ? '🔕 SILENT' : '🔔 ALERT ON'}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -405,5 +448,37 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
     letterSpacing: 0.3,
+  },
+
+  // === Horizontal Action Toolbar ===
+  controlToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: Spacing.sm + 4,
+    flexWrap: 'wrap',
+  },
+  controlPill: {
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  controlPillActive: {
+    backgroundColor: 'rgba(245, 158, 11, 0.8)',
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  controlPillMuted: {
+    backgroundColor: 'rgba(239, 68, 68, 0.7)',
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  controlPillText: {
+    color: EcoWarnColors.textOnPrimary,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });

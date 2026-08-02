@@ -9,24 +9,26 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { TrashVolumeStatus } from '../../types/ecowarn';
+import { TrashVolumeStatus, SpatialCoordinates } from '../../types/ecowarn';
 import { EcoWarnColors, Spacing, BorderRadius } from '../../constants/theme';
 
 interface ScannerActionFooterProps {
   severity: TrashVolumeStatus;
   isReporting: boolean;
   onSendReport: () => void;
+  currentLocation?: SpatialCoordinates;
 }
 
 /**
  * Panel aksi bawah layar Scanner AI — desain premium.
  * Fitur: animated bounce saat severity berubah, haptic feedback,
- * loading spinner, glassmorphism panel, dan React.memo.
+ * loading spinner, glassmorphism panel, telemetri satelit GPS, dan React.memo.
  */
 const ScannerActionFooterInner: React.FC<ScannerActionFooterProps> = ({
   severity,
   isReporting,
   onSendReport,
+  currentLocation,
 }) => {
   const insets = useSafeAreaInsets();
   const buttonScale = useSharedValue(1);
@@ -64,6 +66,20 @@ const ScannerActionFooterInner: React.FC<ScannerActionFooterProps> = ({
   return (
     <View style={styles.container}>
       <View style={[styles.contentArea, { paddingBottom: insets.bottom + Spacing.md }]}>
+        {/* === GPS Telemetry & Accuracy Chip === */}
+        {currentLocation && (
+          <View style={styles.gpsChipContainer}>
+            <Text style={styles.gpsChipText}>
+              {currentLocation.accuracy != null && currentLocation.accuracy < 15
+                ? `📡 GPS AKURAT (±${Math.round(currentLocation.accuracy)}m)`
+                : currentLocation.accuracy != null
+                ? `📡 GPS AKURASI MENENGAH (±${Math.round(currentLocation.accuracy)}m)`
+                : `📡 MENCARI SINYAL GPS...`}
+              {` · ${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}`}
+            </Text>
+          </View>
+        )}
+
         <Animated.View style={buttonAnimStyle}>
           <TouchableOpacity
             style={[
@@ -162,5 +178,22 @@ const styles = StyleSheet.create({
   privacyBold: {
     fontWeight: '700',
     color: 'rgba(255, 255, 255, 0.75)',
+  },
+  gpsChipContainer: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(52, 199, 89, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 199, 89, 0.3)',
+    marginBottom: Spacing.sm + 2,
+  },
+  gpsChipText: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textAlign: 'center',
   },
 });

@@ -17,6 +17,8 @@ export interface TrashDetectionResult {
 export interface SpatialCoordinates {
   latitude: number;
   longitude: number;
+  accuracy?: number | null;
+  timestamp?: number;
 }
 
 export interface ReportPayload {

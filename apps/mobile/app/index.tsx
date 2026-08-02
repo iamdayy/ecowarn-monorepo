@@ -9,7 +9,7 @@ export default function RootGatekeeper() {
 
   if (isLoading) {
     return (
-      <View style={styles.center}>
+      <View>
         <ActivityIndicator size="large" color={EcoWarnColors.primaryLight} />
       </View>
     );

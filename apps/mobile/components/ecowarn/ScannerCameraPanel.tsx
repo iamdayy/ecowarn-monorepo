@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { Camera, useCameraDevice, useFrameProcessor, runAtTargetFps, Frame } from 'react-native-vision-camera';
 import { Worklets } from 'react-native-worklets-core';
 import { NitroModules } from 'react-native-nitro-modules';
 import { useResizePlugin } from 'vision-camera-resize-plugin';
+import * as Haptics from 'expo-haptics';
 import { TrashVolumeStatus, ReportPayload, SpatialCoordinates, BoundingBox } from '../../types/ecowarn';
 import { calculateBoundingBoxRatio, determineSeverityStatus } from '../../utils/volumeCalculator';
 import { useTrashDetectorModel } from '../../services/aiService';
@@ -26,9 +27,13 @@ const CONFIDENCE_THRESHOLD = 0.40;
 const MemoizedCameraView = React.memo(({
   device,
   frameProcessor,
+  torch = 'off',
+  zoom = 1,
 }: {
   device: React.ComponentProps<typeof Camera>['device'];
   frameProcessor: React.ComponentProps<typeof Camera>['frameProcessor'];
+  torch?: 'on' | 'off';
+  zoom?: number;
 }) => (
   <Camera
     style={StyleSheet.absoluteFill}
@@ -36,6 +41,8 @@ const MemoizedCameraView = React.memo(({
     isActive={true}
     pixelFormat="yuv"
     frameProcessor={frameProcessor}
+    torch={torch}
+    zoom={zoom}
   />
 ));
 MemoizedCameraView.displayName = 'MemoizedCameraView';
@@ -58,6 +65,24 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   const [detectedBox, setDetectedBox] = useState<BoundingBox | undefined>(undefined);
   const [isReporting, setIsReporting] = useState<boolean>(false);
   const { resize } = useResizePlugin();
+
+  // State kontrol baru (Torch, Zoom, Silent Haptic Mode)
+  const [isTorchOn, setIsTorchOn] = useState<boolean>(false);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [isHapticMuted, setIsHapticMuted] = useState<boolean>(false);
+  const lastCriticalAlertTimeRef = useRef<number>(0);
+
+  // Umpan balik getaran alarm haptic saat volume sampah berstatus KRITIS (kecuali mode sunyi aktif)
+  useEffect(() => {
+    if (detectedSeverity === 'Kritis' && !isHapticMuted) {
+      const now = Date.now();
+      // Throttling 2.5 detik agar getaran beruntun tidak mengganggu kenyamanan operator
+      if (now - lastCriticalAlertTimeRef.current > 2500) {
+        lastCriticalAlertTimeRef.current = now;
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      }
+    }
+  }, [detectedSeverity, isHapticMuted]);
 
   // Memuat model TFLite untuk Client-Side Inference
   const { model } = useTrashDetectorModel();
@@ -306,17 +331,29 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   // === Tampilan Utama Scanner ===
   return (
     <View style={styles.container}>
-      <MemoizedCameraView device={device} frameProcessor={frameProcessor} />
+      <MemoizedCameraView
+        device={device}
+        frameProcessor={frameProcessor}
+        torch={isTorchOn ? 'on' : 'off'}
+        zoom={zoomLevel}
+      />
       <ScannerHUDOverlay
         severity={detectedSeverity}
         ratio={currentRatio}
         isModelLoaded={!!model}
         boundingBox={detectedBox}
+        isTorchOn={isTorchOn}
+        onToggleTorch={() => setIsTorchOn((prev) => !prev)}
+        zoomLevel={zoomLevel}
+        onCycleZoom={() => setZoomLevel((prev) => (prev === 1 ? 2 : prev === 2 ? 3 : 1))}
+        isHapticMuted={isHapticMuted}
+        onToggleHapticMute={() => setIsHapticMuted((prev) => !prev)}
       />
       <ScannerActionFooter
         severity={detectedSeverity}
         isReporting={isReporting}
         onSendReport={handleSendReport}
+        currentLocation={currentLocation}
       />
     </View>
   );

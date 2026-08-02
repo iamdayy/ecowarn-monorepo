@@ -1,54 +1,28 @@
-import { Tabs } from 'expo-router';
+import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
 import React from 'react';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { EcoWarnColors, Shadows } from '@/constants/theme';
+import { renderAndroidIcon } from '@/components/ui/native-tab-icon';
+import { EcoWarnColors } from '@/constants/theme';
 
 export default function RelawanLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: EcoWarnColors.primaryLight,
-        tabBarInactiveTintColor: EcoWarnColors.textMuted,
-        headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarStyle: {
-          backgroundColor: EcoWarnColors.cardBg,
-          borderTopWidth: 0,
-          height: 60,
-          paddingBottom: 8,
-          ...Shadows.tabBar,
-        },
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Peta Spasial',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="map.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="scanner"
-        options={{
-          title: 'Pemindai AI',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="camera.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{
-          title: 'Riwayat Laporan',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="doc.text.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profil Relawan',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="shield.fill" color={color} />,
-        }}
-      />
-    </Tabs>
+    <NativeTabs tintColor={EcoWarnColors.primaryLight}>
+      <NativeTabs.Trigger name="index">
+        <Label>Peta Spasial</Label>
+        <Icon sf="map.fill" androidSrc={renderAndroidIcon('map')} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="scanner">
+        <Label>Pemindai AI</Label>
+        <Icon sf="camera.fill" androidSrc={renderAndroidIcon('photo-camera')} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="history">
+        <Label>Riwayat Laporan</Label>
+        <Icon sf="doc.text.fill" androidSrc={renderAndroidIcon('history')} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="profile">
+        <Label>Profil Relawan</Label>
+        <Icon sf="shield.fill" androidSrc={renderAndroidIcon('security')} />
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }

@@ -11,22 +11,60 @@ export default function RelawanScannerScreen() {
   const [userLocation, setUserLocation] = useState<SpatialCoordinates>({
     latitude: -6.200000,
     longitude: 106.816666,
+    accuracy: null,
   });
 
   useEffect(() => {
-    const updateLocation = async () => {
+    let locationSubscription: Location.LocationSubscription | null = null;
+
+    const startLocationWatcher = async () => {
       try {
-        const location = await Location.getCurrentPositionAsync({});
-        setUserLocation({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          console.warn('[Warning Scanner Location] Izin lokasi ditolak oleh pengguna.');
+          return;
+        }
+
+        // Ambil lokasi awal secara cepat
+        const initialLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
         });
+        setUserLocation({
+          latitude: initialLocation.coords.latitude,
+          longitude: initialLocation.coords.longitude,
+          accuracy: initialLocation.coords.accuracy,
+          timestamp: initialLocation.timestamp,
+        });
+
+        // Aktifkan live GPS tracking berakurasi tinggi saat relawan berpatroli
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 3000, // Perbaharui setiap 3 detik
+            distanceInterval: 2, // Perbaharui jika bergeser > 2 meter
+          },
+          (newLocation) => {
+            setUserLocation({
+              latitude: newLocation.coords.latitude,
+              longitude: newLocation.coords.longitude,
+              accuracy: newLocation.coords.accuracy,
+              timestamp: newLocation.timestamp,
+            });
+          }
+        );
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`[Error Scanner Location] Gagal memperbarui lokasi kamera: ${errorMessage}`);
+        console.error(`[Error Scanner Location] Gagal mengaktifkan live GPS tracking: ${errorMessage}`);
       }
     };
-    updateLocation();
+
+    startLocationWatcher();
+
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+    };
   }, []);
 
   const handleSendReport = useCallback(async (payload: ReportPayload) => {
