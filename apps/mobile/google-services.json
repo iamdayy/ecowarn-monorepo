@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "228434144715",
+    "project_id": "ecowarn-def2f",
+    "storage_bucket": "ecowarn-def2f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:228434144715:android:6330403416b5b322965a4e",
+        "android_client_info": {
+          "package_name": "com.daydev.ecowarn"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDAeGAIflaWdB67rkc8mE-olDv7UZOoUHg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
