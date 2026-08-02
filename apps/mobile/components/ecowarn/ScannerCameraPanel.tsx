@@ -7,6 +7,7 @@ import { NitroModules } from 'react-native-nitro-modules';
 import { useResizePlugin } from 'vision-camera-resize-plugin';
 import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { TrashVolumeStatus, ReportPayload, SpatialCoordinates, BoundingBox } from '../../types/ecowarn';
 import { processYoloInference } from '../../utils/yoloPostProcessor';
 import { useTrashDetectorModel } from '../../services/aiService';
@@ -267,12 +268,31 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
             flash: isTorchOn ? 'on' : 'off',
           });
           if (photo && photo.path) {
-            // Memastikan URI berskema file:// yang sah agar tidak ditolak oleh expo-file-system
+            // Memastikan URI berskema file:// yang sah
             const fileUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
-            const base64Image = await FileSystem.readAsStringAsync(fileUri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-            photoUrl = `data:image/jpeg;base64,${base64Image}`;
+            
+            // Kompresi & resize gambar menggunakan expo-image-manipulator sebelum dikirim ke peladen.
+            // Langkah ini wajib untuk mencegah galat HTTP 413 "Request Entity Too Large" (Vercel serverless max 4.5MB)
+            // sekaligus mempercepat waktu transmisi data di wilayah pesisir dengan sinyal terbatas.
+            try {
+              const manipulated = await ImageManipulator.manipulateAsync(
+                fileUri,
+                [{ resize: { width: 800 } }], // Resize lebar 800px (cukup tajam dan hemat bandwidth)
+                { compress: 0.65, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+              );
+              if (manipulated.base64) {
+                photoUrl = `data:image/jpeg;base64,${manipulated.base64}`;
+                console.log(`[Camera Snapshot] Sukses mengompresi foto (Ukuran Base64: ~${Math.round(manipulated.base64.length / 1024)} KB)`);
+              } else {
+                throw new Error('Manipulator tidak mengembalikan string Base64');
+              }
+            } catch (manipError) {
+              console.warn('[Camera Snapshot] Manipulator gagal, fallback ke pembacaan sistem berkas murni:', manipError);
+              const base64Image = await FileSystem.readAsStringAsync(fileUri, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              photoUrl = `data:image/jpeg;base64,${base64Image}`;
+            }
           }
         } catch (photoErr) {
           console.warn('[Camera Snapshot] Gagal memotret bukti lapangan:', photoErr);

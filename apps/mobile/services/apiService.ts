@@ -38,7 +38,7 @@ export interface ServerReportResponse {
 }
 
 /**
- * Mengirim payload peringatan dini ke peladen (HANYA koordinat & status keparahan, TANPA GAMBAR)
+ * Mengirim payload peringatan dini ke peladen
  */
 export const sendReportToServer = async (payload: ReportPayload, token?: string): Promise<ServerReportResponse> => {
   try {
@@ -55,7 +55,16 @@ export const sendReportToServer = async (payload: ReportPayload, token?: string)
       body: JSON.stringify(payload),
     });
 
-    const result = await response.json();
+    const responseText = await response.text();
+    let result: any;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      // Menangani kasus di mana proxy Vercel atau serverless gateway mengembalikan string non-JSON
+      // (misalnya "Request Entity Too Large" atau error HTML 502/504)
+      const errInfo = responseText.length > 150 ? responseText.substring(0, 150) + '...' : responseText;
+      throw new Error(`Galat Peladen (${response.status}): ${errInfo || 'Respon berformat non-JSON'}`);
+    }
 
     if (!response.ok || !result.success) {
       throw new Error(result.message || `HTTP Error ${response.status}`);
@@ -80,7 +89,13 @@ export const fetchNearbyReports = async (
   try {
     const url = `${API_BASE_URL}/reports?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&maxDistance=${encodeURIComponent(maxDistanceMeters)}`;
     const response = await fetch(url);
-    const result = await response.json();
+    const responseText = await response.text();
+    let result: any;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      throw new Error(`Respon non-JSON diterima (${response.status})`);
+    }
 
     if (!response.ok || !result.success) {
       throw new Error(result.message || `HTTP Error ${response.status}`);
@@ -104,7 +119,13 @@ export const fetchReporterHistory = async (token?: string): Promise<ServerReport
       headers['Authorization'] = `Bearer ${token}`;
     }
     const response = await fetch(`${API_BASE_URL}/reports/history`, { headers });
-    const result = await response.json();
+    const responseText = await response.text();
+    let result: any;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      throw new Error(`Respon non-JSON diterima (${response.status})`);
+    }
 
     if (!response.ok || !result.success) {
       throw new Error(result.message || `HTTP Error ${response.status}`);
