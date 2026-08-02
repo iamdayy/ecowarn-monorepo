@@ -9,9 +9,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider } from '@/context/AuthContext';
 import { handleBackgroundMessage } from '@/services/backgroundMessageHandler';
 import {
-  setupNotifeeChannels,
   setupForegroundMessageListener,
-  setupNotifeeEventListener,
   registerBackgroundHandler,
 } from '@/services/notificationService';
 
@@ -24,18 +22,11 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
-    // Buat notification channel Notifee saat app pertama kali dimuat
-    setupNotifeeChannels();
-
     // Daftarkan listener untuk pesan FCM saat app di foreground
     const unsubscribeForeground = setupForegroundMessageListener();
 
-    // Daftarkan listener untuk event Notifee (tap notifikasi)
-    const unsubscribeNotifee = setupNotifeeEventListener();
-
     return () => {
       unsubscribeForeground();
-      unsubscribeNotifee();
     };
   }, []);
 

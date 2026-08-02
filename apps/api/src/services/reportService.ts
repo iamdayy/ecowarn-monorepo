@@ -10,6 +10,7 @@ export interface CreateReportPayload {
   longitude: number;
   latitude: number;
   severity: TrashVolumeStatus;
+  photoUrl?: string;
 }
 
 export interface SpatialQueryFilter {
@@ -20,7 +21,7 @@ export interface SpatialQueryFilter {
 
 export const createReportService = async (payload: CreateReportPayload): Promise<IReport> => {
   try {
-    const { reporterId, longitude, latitude, severity } = payload;
+    const { reporterId, longitude, latitude, severity, photoUrl } = payload;
 
     const newReport = await Report.create({
       reporterId,
@@ -29,6 +30,7 @@ export const createReportService = async (payload: CreateReportPayload): Promise
         coordinates: [longitude, latitude],
       },
       severity,
+      photoUrl,
     });
 
     // Pancarkan event real-time ke seluruh klien pemantau agar marker peta terperbarui

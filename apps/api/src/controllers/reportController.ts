@@ -4,7 +4,7 @@ import { createReportService, getReportsService, getReportsByReporterService, Cr
 
 export const createReport = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { longitude, latitude, severity } = req.body as CreateReportPayload;
+    const { longitude, latitude, severity, photoUrl } = req.body as CreateReportPayload;
 
     if (longitude === undefined || latitude === undefined || !severity) {
       res.status(400).json({
@@ -27,6 +27,7 @@ export const createReport = async (req: AuthRequest, res: Response): Promise<voi
       longitude: Number(longitude),
       latitude: Number(latitude),
       severity,
+      photoUrl,
     });
 
     res.status(201).json({

@@ -9,6 +9,7 @@ export interface IReport extends Document {
     coordinates: [number, number]; // [longitude, latitude]
   };
   severity: TrashVolumeStatus;
+  photoUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +42,10 @@ const reportSchema = new Schema<IReport>(
       type: String,
       enum: ['Ringan', 'Sedang', 'Kritis'],
       required: [true, 'Status volume sampah (severity) wajib diisi'],
+    },
+    photoUrl: {
+      type: String,
+      required: false,
     },
   },
   {
