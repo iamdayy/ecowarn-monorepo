@@ -29,7 +29,8 @@ export const MapScreenView: React.FC = () => {
 
   const loadReportsFromServer = useCallback(async (latitude: number, longitude: number) => {
     try {
-      const serverReports = await fetchNearbyReports(latitude, longitude);
+      // Memperluas radius pencarian marker ke 100km agar seluruh laporan wilayah yang ada di server tampil pada peta
+      const serverReports = await fetchNearbyReports(latitude, longitude, 100000);
       const formatted = serverReports.map(formatServerReportToMapItem);
       setActiveReports(formatted);
     } catch (error) {
@@ -42,8 +43,8 @@ export const MapScreenView: React.FC = () => {
     const initLocationAndFetch = async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        let lat = userLocation.latitude;
-        let lng = userLocation.longitude;
+        let lat = -6.200000;
+        let lng = 106.816666;
 
         if (status === 'granted') {
           const location = await Location.getCurrentPositionAsync({});
@@ -63,7 +64,7 @@ export const MapScreenView: React.FC = () => {
     };
 
     initLocationAndFetch();
-  }, [loadReportsFromServer, userLocation.latitude, userLocation.longitude]);
+  }, [loadReportsFromServer]);
 
   // Integrasi Real-Time Engine (Socket.io)
   useEffect(() => {

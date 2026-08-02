@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Linking, Platform } from 'react-native';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import { TrashVolumeStatus, SpatialCoordinates } from '../../types/ecowarn';
@@ -18,7 +18,7 @@ interface InteractiveMapProps {
   criticalZoneRadiusMeters?: number;
 }
 
-const DEFAULT_CRITICAL_RADIUS = 500; // 5 km radius
+const DEFAULT_CRITICAL_RADIUS = 500; // 500 meter radius zona bahaya rob/sumbatan
 
 export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   userLocation,
@@ -30,6 +30,16 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [is3D, setIs3D] = useState<boolean>(false);
   const [showLegend, setShowLegend] = useState<boolean>(false);
   const mapRef = useRef<MapView>(null);
+
+  // Animasi otomatis kamera ke koordinat GPS aktual saat peta dimuat atau lokasi diperbaiki
+  useEffect(() => {
+    if (userLocation.latitude && userLocation.longitude && mapRef.current) {
+      mapRef.current.animateCamera({
+        center: { latitude: userLocation.latitude, longitude: userLocation.longitude },
+        zoom: 14,
+      }, { duration: 800 });
+    }
+  }, [userLocation.latitude, userLocation.longitude]);
 
   const toggle3DMode = () => {
     const nextState = !is3D;
@@ -124,6 +134,28 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           activeOpacity={0.85}
           accessibilityLabel="Toggle Legenda">
           <Text style={styles.fabIcon}>ℹ️</Text>
+        </TouchableOpacity>
+
+        {/* Tombol FAB Fit Semua Titik Marker Laporan */}
+        <TouchableOpacity
+          style={styles.fabButton}
+          onPress={() => {
+            if (reports.length > 0 && mapRef.current) {
+              const coords = reports.map(r => ({ latitude: r.latitude, longitude: r.longitude }));
+              mapRef.current.fitToCoordinates(coords, {
+                edgePadding: { top: 100, right: 100, bottom: 200, left: 100 },
+                animated: true,
+              });
+            } else if (mapRef.current) {
+              mapRef.current.animateCamera({
+                center: { latitude: userLocation.latitude, longitude: userLocation.longitude },
+                zoom: 15,
+              }, { duration: 800 });
+            }
+          }}
+          activeOpacity={0.85}
+          accessibilityLabel="Fokus ke Semua Titik Sampah">
+          <Text style={styles.fabIcon}>🎯</Text>
         </TouchableOpacity>
       </View>
 

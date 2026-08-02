@@ -267,7 +267,9 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
             flash: isTorchOn ? 'on' : 'off',
           });
           if (photo && photo.path) {
-            const base64Image = await FileSystem.readAsStringAsync(photo.path, {
+            // Memastikan URI berskema file:// yang sah agar tidak ditolak oleh expo-file-system
+            const fileUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+            const base64Image = await FileSystem.readAsStringAsync(fileUri, {
               encoding: FileSystem.EncodingType.Base64,
             });
             photoUrl = `data:image/jpeg;base64,${base64Image}`;

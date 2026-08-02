@@ -2,7 +2,7 @@ import { Report, IReport } from '../models/ReportSchema';
 import { getSocketServer } from '../config/socket';
 import { sendCriticalPushNotification } from './fcmService';
 
-const SPATIAL_RADIUS_METERS = 5000; // 5 km radius pencarian zona terdampak
+const SPATIAL_RADIUS_METERS = 500; // 500 meter radius pencarian zona bahaya rob/sumbatan
 const EVENT_CRITICAL_ZONE_ALERT = 'CRITICAL_ZONE_ALERT';
 
 export interface CriticalZoneBroadcastPayload {
@@ -18,7 +18,7 @@ export const broadcastCriticalAlert = async (criticalReport: IReport): Promise<v
   try {
     const [longitude, latitude] = criticalReport.location.coordinates;
 
-    // Kueri spasial MongoDB menggunakan $nearSphere dan index 2dsphere
+    // Kueri spasial MongoDB menggunakan $nearSphere dalam lingkup 500 meter
     const impactedReports = await Report.find({
       location: {
         $nearSphere: {
@@ -29,20 +29,28 @@ export const broadcastCriticalAlert = async (criticalReport: IReport): Promise<v
           $maxDistance: SPATIAL_RADIUS_METERS,
         },
       },
+      severity: { $in: ['Kritis', 'Sedang'] }, // Menyaring laporan sumbatan/kritis
     });
+
+    // Logika baru: Potensi bencana muncul jika terdapat 5 - 10 (atau lebih) laporan sumbatan di bawah 500 meter
+    const totalSumbatan = impactedReports.length;
+    if (totalSumbatan < 5) {
+      console.log(`[Alert Engine] Analisis spasial pada zona (${longitude}, ${latitude}): ${totalSumbatan} laporan sumbatan terdeteksi dalam radius 500m (< 5). Potensi bencana berstatus Ringan hingga Sedang.`);
+      return;
+    }
 
     const broadcastPayload: CriticalZoneBroadcastPayload = {
       alertId: (criticalReport._id as unknown as string).toString(),
       timestamp: new Date(),
       centerCoordinates: [longitude, latitude],
       impactedRadiusMeters: SPATIAL_RADIUS_METERS,
-      totalNearbyReports: impactedReports.length,
-      message: 'PERINGATAN DINI: Terdeteksi krisis volume sampah berskala kritis di zona Anda!',
+      totalNearbyReports: totalSumbatan,
+      message: `POTENSI BENCANA BANJIR ROB / SUMBATAN MUNNA! Terdeteksi ${totalSumbatan} titik sumbatan berbahaya dalam lingkup 500 meter!`,
     };
 
     const io = getSocketServer();
     io.emit(EVENT_CRITICAL_ZONE_ALERT, broadcastPayload);
-    console.log(`[Real-Time Engine] Broadcast darurat dipancarkan ke semua klien (Zona: ${longitude}, ${latitude})`);
+    console.log(`[Real-Time Engine] Broadcast darurat dipancarkan (Total Sumbatan 500m: ${totalSumbatan} titik)`);
 
     // Kirim push notification FCM ke perangkat yang berada di background/killed state
     await sendCriticalPushNotification([longitude, latitude], {

@@ -41,7 +41,8 @@ export const createReportService = async (payload: CreateReportPayload): Promise
       console.warn('[Warning Socket Engine] Socket server belum aktif atau gagal mengirim event NEW_REPORT.');
     }
 
-    if (severity === 'Kritis') {
+    // Evaluasi potensi bencana 500 meter paska masuknya laporan sumbatan baru
+    if (severity === 'Kritis' || severity === 'Sedang') {
       await broadcastCriticalAlert(newReport);
     }
 
