@@ -384,12 +384,14 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
       };
 
       await onSendReport(payload);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Sukses', `Laporan status ${detectedSeverity} berhasil dikirim ke peladen.`);
       if (isLocked) {
         setIsLocked(false);
         setFrozenFrameUri(null); // Buka kembali frame kamera setelah berhasil kirim laporan
       }
     } catch (error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[Error Send Report] Gagal mengirim payload laporan: ${errorMessage}`);
       Alert.alert('Galat', 'Gagal mengirim laporan peringatan dini ke peladen.');

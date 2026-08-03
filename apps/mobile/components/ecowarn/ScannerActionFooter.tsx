@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { TrashVolumeStatus, SpatialCoordinates } from '../../types/ecowarn';
 import { EcoWarnColors, Spacing, BorderRadius } from '../../constants/theme';
+import { useCoordinateAddress } from '../../services/geocodingService';
 
 interface ScannerActionFooterProps {
   severity: TrashVolumeStatus;
@@ -32,6 +33,7 @@ const ScannerActionFooterInner: React.FC<ScannerActionFooterProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const buttonScale = useSharedValue(1);
+  const { address } = useCoordinateAddress(currentLocation?.latitude, currentLocation?.longitude, 'short');
 
   // Bounce animation saat severity berubah — memberikan feedback visual
   useEffect(() => {
@@ -66,10 +68,10 @@ const ScannerActionFooterInner: React.FC<ScannerActionFooterProps> = ({
   return (
     <View style={[styles.container, { bottom: Math.max(insets.bottom, 14) + 10 }]}>
       <View style={styles.contentArea}>
-        {/* === GPS Telemetry & Accuracy Chip === */}
+        {/* === GPS Telemetry & Accuracy Chip (Kolaborasi Alamat Kawasan & Koordinat Angka) === */}
         {currentLocation && (
           <View style={styles.gpsChipContainer}>
-            <Text style={styles.gpsChipText}>
+            <Text style={styles.gpsChipText} numberOfLines={2}>
               {currentLocation.accuracy != null && currentLocation.accuracy <= 15
                 ? `🛰️ GPS AKURAT (±${Math.round(currentLocation.accuracy)}m)`
                 : currentLocation.accuracy != null && currentLocation.accuracy <= 35
@@ -77,7 +79,7 @@ const ScannerActionFooterInner: React.FC<ScannerActionFooterProps> = ({
                 : currentLocation.accuracy != null
                 ? `📡 SINYAL LEMAH (±${Math.round(currentLocation.accuracy)}m)`
                 : `📡 MENCARI SINYAL SATELIT...`}
-              {` · ${currentLocation.latitude.toFixed(5)}, ${currentLocation.longitude.toFixed(5)}`}
+              {` · ${address} (${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)})`}
             </Text>
           </View>
         )}

@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { ServerReportResponse } from '../../services/apiService';
 import { EcoWarnColors, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { useCoordinateAddress } from '../../services/geocodingService';
 
 interface ReportDetailModalProps {
   visible: boolean;
@@ -72,6 +73,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
 
   const badge = getBadgeStyle(report.severity);
   const [longitude, latitude] = report.location.coordinates;
+  const { address } = useCoordinateAddress(latitude, longitude, 'full');
 
   return (
     <Modal
@@ -143,6 +145,16 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   <View style={styles.metaTextWrapper}>
                     <Text style={styles.metaLabel}>Waktu Pelaporan</Text>
                     <Text style={styles.metaValue}>{dateStr}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.metaRow}>
+                  <Ionicons name="map-outline" size={20} color={EcoWarnColors.primary} />
+                  <View style={styles.metaTextWrapper}>
+                    <Text style={styles.metaLabel}>Alamat Lokasi Lapangan</Text>
+                    <Text style={styles.metaValue}>{address}</Text>
                   </View>
                 </View>
 

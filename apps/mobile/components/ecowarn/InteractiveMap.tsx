@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Linking, Platform } from 'react-native';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
+import * as Haptics from 'expo-haptics';
 import { TrashVolumeStatus, SpatialCoordinates } from '../../types/ecowarn';
 import { EcoWarnColors, Spacing, BorderRadius } from '../../constants/theme';
 import { ReportDetailModal } from './ReportDetailModal';
 import { ServerReportResponse } from '../../services/apiService';
+import { useCoordinateAddress } from '../../services/geocodingService';
 
 export interface MapReportItem {
   id: string;
@@ -30,6 +32,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   criticalZoneRadiusMeters = DEFAULT_CRITICAL_RADIUS,
 }) => {
   const [selectedReport, setSelectedReport] = useState<MapReportItem | null>(null);
+  const { address } = useCoordinateAddress(selectedReport?.latitude, selectedReport?.longitude, 'short');
   const [detailModalVisible, setDetailModalVisible] = useState<boolean>(false);
   const [mapType, setMapType] = useState<'standard' | 'hybrid'>('standard');
   const [is3D, setIs3D] = useState<boolean>(false);
@@ -100,7 +103,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               title={`Status: ${report.severity}`}
               description="Klik untuk aksi toolbar aplikasi"
               pinColor={getMarkerColor(report.severity)}
-              onPress={() => setSelectedReport(report)}
+              onPress={() => {
+                Haptics.selectionAsync();
+                setSelectedReport(report);
+              }}
             />
             {report.severity === 'Kritis' && (
               <Circle
@@ -119,7 +125,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       <View style={styles.fabStackContainer}>
         <TouchableOpacity
           style={[styles.fabButton, mapType === 'hybrid' && styles.fabButtonActive]}
-          onPress={() => setMapType((prev) => (prev === 'standard' ? 'hybrid' : 'standard'))}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setMapType((prev) => (prev === 'standard' ? 'hybrid' : 'standard'));
+          }}
           activeOpacity={0.85}
           accessibilityLabel="Toggle Satelit">
           <Text style={styles.fabIcon}>{mapType === 'standard' ? '🛰️' : '🗺️'}</Text>
@@ -127,7 +136,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
         <TouchableOpacity
           style={[styles.fabButton, is3D && styles.fabButtonActive]}
-          onPress={toggle3DMode}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            toggle3DMode();
+          }}
           activeOpacity={0.85}
           accessibilityLabel="Toggle 3D Bangunan">
           <Text style={styles.fabIcon}>🏙️</Text>
@@ -135,7 +147,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
         <TouchableOpacity
           style={[styles.fabButton, showLegend && styles.fabButtonActive]}
-          onPress={() => setShowLegend((prev) => !prev)}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowLegend((prev) => !prev);
+          }}
           activeOpacity={0.85}
           accessibilityLabel="Toggle Legenda">
           <Text style={styles.fabIcon}>ℹ️</Text>
@@ -145,6 +160,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         <TouchableOpacity
           style={styles.fabButton}
           onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             if (reports.length > 0 && mapRef.current) {
               const coords = reports.map(r => ({ latitude: r.latitude, longitude: r.longitude }));
               mapRef.current.fitToCoordinates(coords, {
@@ -195,14 +211,17 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             </TouchableOpacity>
           </View>
           <Text style={styles.appToolbarSub}>
-            Koord: {selectedReport.latitude.toFixed(5)}, {selectedReport.longitude.toFixed(5)}
+            📍 {address} ({selectedReport.latitude.toFixed(4)}, {selectedReport.longitude.toFixed(4)})
           </Text>
 
           <View style={styles.appToolbarActions}>
             {/* Tombol utama untuk melihat detail & foto tanpa pindah halaman */}
             <TouchableOpacity
               style={styles.actionBtnDetail}
-              onPress={() => setDetailModalVisible(true)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setDetailModalVisible(true);
+              }}
               activeOpacity={0.85}>
               <Text style={styles.actionBtnDetailText}>📸 Lihat Detail & Bukti Foto</Text>
             </TouchableOpacity>
@@ -211,6 +230,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               <TouchableOpacity
                 style={styles.actionBtnPrimary}
                 onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   const url = Platform.select({
                     ios: `maps://0,0?q=${selectedReport.latitude},${selectedReport.longitude}`,
                     android: `geo:${selectedReport.latitude},${selectedReport.longitude}?q=${selectedReport.latitude},${selectedReport.longitude}(Titik+EcoWarn)`,
@@ -225,6 +245,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               <TouchableOpacity
                 style={styles.actionBtnSecondary}
                 onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   mapRef.current?.animateCamera({
                     center: { latitude: selectedReport.latitude, longitude: selectedReport.longitude },
                     zoom: 18,

@@ -1,15 +1,68 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
 import { fetchNearbyReports, ServerReportResponse } from '../../services/apiService';
 import { ScreenHeaderBanner } from './ScreenHeaderBanner';
+import { ReportDetailModal } from './ReportDetailModal';
 import { EcoWarnColors, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { useCoordinateAddress } from '../../services/geocodingService';
+
+interface AlertCardProps {
+  item: ServerReportResponse;
+  onSelect: (item: ServerReportResponse) => void;
+}
+
+const AlertCardItem: React.FC<AlertCardProps> = ({ item, onSelect }) => {
+  const [lng, lat] = item.location.coordinates;
+  const { address } = useCoordinateAddress(lat, lng, 'short');
+  const isCritical = item.severity === 'Kritis';
+  const isSedang = item.severity === 'Sedang';
+  const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleString('id-ID') : 'Baru saja';
+
+  let borderColor: string = EcoWarnColors.safe;
+  let bgCard: string = EcoWarnColors.safeSurface;
+  let icon = '🟢';
+  if (isCritical) {
+    borderColor = EcoWarnColors.critical;
+    bgCard = EcoWarnColors.criticalSurface;
+    icon = '🚨';
+  } else if (isSedang) {
+    borderColor = EcoWarnColors.warning;
+    bgCard = EcoWarnColors.warningSurface;
+    icon = '⚠️';
+  }
+
+  return (
+    <TouchableOpacity
+      style={[styles.alertCard, { borderColor, backgroundColor: bgCard }]}
+      activeOpacity={0.8}
+      onPress={() => onSelect(item)}
+    >
+      <View style={styles.cardHeader}>
+        <Text style={styles.alertIcon}>{icon}</Text>
+        <View style={styles.titleContainer}>
+          <Text style={[styles.alertTitle, isCritical ? styles.textCritical : isSedang ? styles.textWarning : styles.textSafe]}>
+            {isCritical ? 'TITIK KRITIS SUMBATAN' : isSedang ? 'WASPADA VOLUM SEDANG' : 'TITIK PANTAU RINGAN'}
+          </Text>
+          <Text style={styles.timestamp}>{dateStr}</Text>
+        </View>
+      </View>
+      <Text style={styles.description}>
+        Terdeteksi ancaman sumbatan sampah berstatus <Text style={styles.bold}>{item.severity}</Text> di kawasan <Text style={styles.bold}>{address}</Text> ({lat.toFixed(4)}, {lng.toFixed(4)}).
+      </Text>
+      <Text style={styles.detailHintText}>📸 Ketuk untuk lihat bukti foto &amp; detail &gt;</Text>
+    </TouchableOpacity>
+  );
+};
 
 export const AlertsScreenView: React.FC = () => {
   const [alerts, setAlerts] = useState<ServerReportResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [totalSumbatan500m, setTotalSumbatan500m] = useState<number>(0);
+  const [selectedReport, setSelectedReport] = useState<ServerReportResponse | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
 
   const loadCriticalAlerts = useCallback(async () => {
     try {
@@ -51,38 +104,15 @@ export const AlertsScreenView: React.FC = () => {
   const isBencanaHigh = totalSumbatan500m >= 5;
 
   const renderItem = ({ item }: { item: ServerReportResponse }) => {
-    const isCritical = item.severity === 'Kritis';
-    const isSedang = item.severity === 'Sedang';
-    const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleString('id-ID') : 'Baru saja';
-    
-    let borderColor: string = EcoWarnColors.safe;
-    let bgCard: string = EcoWarnColors.safeSurface;
-    let icon = '🟢';
-    if (isCritical) {
-      borderColor = EcoWarnColors.critical;
-      bgCard = EcoWarnColors.criticalSurface;
-      icon = '🚨';
-    } else if (isSedang) {
-      borderColor = EcoWarnColors.warning;
-      bgCard = EcoWarnColors.warningSurface;
-      icon = '⚠️';
-    }
-
     return (
-      <View style={[styles.alertCard, { borderColor, backgroundColor: bgCard }]}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.alertIcon}>{icon}</Text>
-          <View style={styles.titleContainer}>
-            <Text style={[styles.alertTitle, isCritical ? styles.textCritical : isSedang ? styles.textWarning : styles.textSafe]}>
-              {isCritical ? 'TITIK KRITIS SUMBATAN' : isSedang ? 'WASPADA VOLUM SEDANG' : 'TITIK PANTAU RINGAN'}
-            </Text>
-            <Text style={styles.timestamp}>{dateStr}</Text>
-          </View>
-        </View>
-        <Text style={styles.description}>
-          Terdeteksi laporan sampah berstatus <Text style={styles.bold}>{item.severity}</Text> pada koordinat [{item.location.coordinates[1].toFixed(4)}, {item.location.coordinates[0].toFixed(4)}].
-        </Text>
-      </View>
+      <AlertCardItem
+        item={item}
+        onSelect={(selected) => {
+          Haptics.selectionAsync();
+          setSelectedReport(selected);
+          setIsModalVisible(true);
+        }}
+      />
     );
   };
 
@@ -132,6 +162,16 @@ export const AlertsScreenView: React.FC = () => {
           }
         />
       )}
+
+      <ReportDetailModal
+        visible={isModalVisible}
+        report={selectedReport}
+        onClose={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setIsModalVisible(false);
+          setSelectedReport(null);
+        }}
+      />
     </View>
   );
 };
@@ -263,5 +303,11 @@ const styles = StyleSheet.create({
     color: EcoWarnColors.textMuted,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  detailHintText: {
+    fontSize: 12,
+    color: EcoWarnColors.primaryDark,
+    fontWeight: '700',
+    marginTop: Spacing.sm,
   },
 });

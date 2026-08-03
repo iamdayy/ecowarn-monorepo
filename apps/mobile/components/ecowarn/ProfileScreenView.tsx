@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import { ScreenHeaderBanner } from './ScreenHeaderBanner';
@@ -10,6 +11,7 @@ export const ProfileScreenView: React.FC = () => {
   const router = useRouter();
 
   const handleLogout = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Konfirmasi Logout',
       'Apakah Anda yakin ingin keluar dari akun Anda?',

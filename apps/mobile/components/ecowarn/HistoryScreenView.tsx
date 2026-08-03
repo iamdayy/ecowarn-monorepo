@@ -1,10 +1,52 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useAuth } from '../../context/AuthContext';
 import { fetchReporterHistory, ServerReportResponse } from '../../services/apiService';
 import { ScreenHeaderBanner } from './ScreenHeaderBanner';
 import { ReportDetailModal } from './ReportDetailModal';
 import { EcoWarnColors, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { useCoordinateAddress } from '../../services/geocodingService';
+
+interface HistoryItemProps {
+  item: ServerReportResponse;
+  onSelect: (report: ServerReportResponse) => void;
+  badgeStyle: { bg: string; border: string; text: string; icon: string };
+}
+
+const HistoryCardItem: React.FC<HistoryItemProps> = ({ item, onSelect, badgeStyle }) => {
+  const [lng, lat] = item.location.coordinates;
+  const { address } = useCoordinateAddress(lat, lng, 'short');
+  const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleString('id-ID') : 'Baru saja';
+
+  return (
+    <TouchableOpacity
+      style={styles.reportCard}
+      activeOpacity={0.8}
+      onPress={() => onSelect(item)}
+    >
+      <View style={styles.cardHeader}>
+        <Text style={styles.reportIcon}>{badgeStyle.icon}</Text>
+        <View style={styles.idContainer}>
+          <Text style={styles.reportTitle}>ID: {item._id.slice(-8).toUpperCase()}</Text>
+          <Text style={styles.timestamp}>{dateStr}</Text>
+        </View>
+        <View style={[styles.severityBadge, { backgroundColor: badgeStyle.bg, borderColor: badgeStyle.border }]}>
+          <Text style={[styles.severityText, { color: badgeStyle.text }]}>{item.severity}</Text>
+        </View>
+      </View>
+      
+      <View style={styles.divider} />
+      
+      <View style={styles.cardFooter}>
+        <Text style={[styles.coordinateText, { flex: 1, marginRight: 8 }]} numberOfLines={1}>
+          📍 {address} ({lat.toFixed(4)}, {lng.toFixed(4)})
+        </Text>
+        <Text style={styles.detailHintText}>📸 Lihat Detail &gt;</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 export const HistoryScreenView: React.FC = () => {
   const { token } = useAuth();
@@ -50,37 +92,16 @@ export const HistoryScreenView: React.FC = () => {
 
   const renderItem = ({ item }: { item: ServerReportResponse }) => {
     const badge = getBadgeStyle(item.severity);
-    const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleString('id-ID') : 'Baru saja';
-
     return (
-      <TouchableOpacity
-        style={styles.reportCard}
-        activeOpacity={0.8}
-        onPress={() => {
-          setSelectedReport(item);
+      <HistoryCardItem
+        item={item}
+        badgeStyle={badge}
+        onSelect={(selected) => {
+          Haptics.selectionAsync();
+          setSelectedReport(selected);
           setIsModalVisible(true);
         }}
-      >
-        <View style={styles.cardHeader}>
-          <Text style={styles.reportIcon}>{badge.icon}</Text>
-          <View style={styles.idContainer}>
-            <Text style={styles.reportTitle}>ID: {item._id.slice(-8).toUpperCase()}</Text>
-            <Text style={styles.timestamp}>{dateStr}</Text>
-          </View>
-          <View style={[styles.severityBadge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
-            <Text style={[styles.severityText, { color: badge.text }]}>{item.severity}</Text>
-          </View>
-        </View>
-        
-        <View style={styles.divider} />
-        
-        <View style={styles.cardFooter}>
-          <Text style={styles.coordinateText}>
-            📍 [{item.location.coordinates[1].toFixed(4)}, {item.location.coordinates[0].toFixed(4)}]
-          </Text>
-          <Text style={styles.detailHintText}>📸 Lihat Detail &gt;</Text>
-        </View>
-      </TouchableOpacity>
+      />
     );
   };
 
@@ -120,6 +141,7 @@ export const HistoryScreenView: React.FC = () => {
         visible={isModalVisible}
         report={selectedReport}
         onClose={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           setIsModalVisible(false);
           setSelectedReport(null);
         }}
