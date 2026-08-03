@@ -6,6 +6,7 @@ import Animated, {
   withRepeat,
   withTiming,
   withSequence,
+  withSpring,
   Easing,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -72,8 +73,7 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
   const boxHeight = useSharedValue(0);
   const boxOpacity = useSharedValue(0);
 
-  // Referensi riwayat posisi box untuk Temporal Smoothing (EMA) & Anti-Flicker Hysteresis
-  const prevCoordsRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
+  // Referensi timer untuk Anti-Flicker Hysteresis
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -151,42 +151,23 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
       const targetHeight = Math.min(containerSize.height - targetTop, Math.max(20, rawHeight));
 
       // =====================================================================
-      // TEMPORAL SMOOTHING (LOW-PASS FILTER / EMA):
-      // Meredam getaran (jitter) antar-frame akibat fluktuasi saraf AI YOLO.
-      // Jika jarak perpindahan < 150px, aplikasikan pelembutan 65% ke frame lama.
+      // REAL-TIME FLUID SPRING TRACKING:
+      // Karena koordinat AI telah dihaluskan (EMA Filter) langsung pada Worklet Thread,
+      // animasi UI memanfaaatkan fisika pegas (withSpring) dari Reanimated
+      // agar boks mengikuti laju pergerakan sampah di layar dengan responsif & mulus!
       // =====================================================================
-      let finalLeft = targetLeft;
-      let finalTop = targetTop;
-      let finalWidth = targetWidth;
-      let finalHeight = targetHeight;
-
-      if (prevCoordsRef.current) {
-        const dist = Math.hypot(targetLeft - prevCoordsRef.current.left, targetTop - prevCoordsRef.current.top);
-        if (dist < 150) {
-          const alpha = 0.35; // 35% frame baru + 65% retensi posisi lama (anti getar/mulus)
-          finalLeft = prevCoordsRef.current.left * (1 - alpha) + targetLeft * alpha;
-          finalTop = prevCoordsRef.current.top * (1 - alpha) + targetTop * alpha;
-          finalWidth = prevCoordsRef.current.width * (1 - alpha) + targetWidth * alpha;
-          finalHeight = prevCoordsRef.current.height * (1 - alpha) + targetHeight * alpha;
-        }
-      }
-      prevCoordsRef.current = { left: finalLeft, top: finalTop, width: finalWidth, height: finalHeight };
-
-      // Jika box baru muncul dari hidden (opacity 0), posisikan seketika lalu fade in
       if (boxOpacity.value === 0) {
-        boxLeft.value = finalLeft;
-        boxTop.value = finalTop;
-        boxWidth.value = finalWidth;
-        boxHeight.value = finalHeight;
-        boxOpacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.quad) });
+        boxLeft.value = targetLeft;
+        boxTop.value = targetTop;
+        boxWidth.value = targetWidth;
+        boxHeight.value = targetHeight;
+        boxOpacity.value = withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) });
       } else {
-        // Transisi halus tersinkronisasi dengan 5 FPS Inference
-        const duration = 220;
-        const easing = Easing.out(Easing.cubic);
-        boxLeft.value = withTiming(finalLeft, { duration, easing });
-        boxTop.value = withTiming(finalTop, { duration, easing });
-        boxWidth.value = withTiming(finalWidth, { duration, easing });
-        boxHeight.value = withTiming(finalHeight, { duration, easing });
+        const springConfig = { damping: 20, stiffness: 160, mass: 0.8 };
+        boxLeft.value = withSpring(targetLeft, springConfig);
+        boxTop.value = withSpring(targetTop, springConfig);
+        boxWidth.value = withSpring(targetWidth, springConfig);
+        boxHeight.value = withSpring(targetHeight, springConfig);
       }
     } else {
       // =====================================================================
@@ -197,7 +178,6 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
       if (!hideTimerRef.current && boxOpacity.value > 0) {
         hideTimerRef.current = setTimeout(() => {
           boxOpacity.value = withTiming(0, { duration: 250 });
-          prevCoordsRef.current = null;
           hideTimerRef.current = null;
         }, 400);
       }

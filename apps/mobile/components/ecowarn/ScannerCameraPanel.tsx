@@ -10,7 +10,7 @@ import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Location from 'expo-location';
 import { TrashVolumeStatus, ReportPayload, SpatialCoordinates, BoundingBox } from '../../types/ecowarn';
-import { processYoloInference } from '../../utils/yoloPostProcessor';
+import { processYoloInference, ObjectTrackerState } from '../../utils/yoloPostProcessor';
 import { useTrashDetectorModel } from '../../services/aiService';
 import { ScannerHUDOverlay } from './ScannerHUDOverlay';
 import { ScannerActionFooter } from './ScannerActionFooter';
@@ -79,6 +79,17 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   const [detectedBox, setDetectedBox] = useState<BoundingBox | undefined>(undefined);
   const [isReporting, setIsReporting] = useState<boolean>(false);
   const { resize } = useResizePlugin();
+
+  // Ref untuk melacak koordinat antar frame (Spatial Object Tracker)
+  const trackerRef = useRef<ObjectTrackerState>({
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    score: 0,
+    isValid: false,
+    missedFrames: 0,
+  });
 
   // State penguncian deteksi (Detection Lock & Frame Freeze)
   const [isLocked, setIsLocked] = useState<boolean>(false);
@@ -243,7 +254,8 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
               outputConfig,
               frame.width,
               frame.height,
-              CONFIDENCE_THRESHOLD
+              CONFIDENCE_THRESHOLD,
+              trackerRef.current
             );
 
             updateDetectionResult(detection.ratio, detection.severity, detection.boundingBox);
@@ -254,7 +266,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
         }
       });
     },
-    [boxedModel, inputConfig, outputConfig, resize, updateDetectionResult, logWorkletError]
+    [boxedModel, inputConfig, outputConfig, resize, updateDetectionResult, logWorkletError, trackerRef]
   );
 
   const handleToggleLock = useCallback(async () => {
@@ -280,6 +292,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
     } else {
       // Buka kunci mengembalikan kamera ke mode siaran waktu nyata (live stream)
       setFrozenFrameUri(null);
+      if (trackerRef.current) trackerRef.current.isValid = false;
     }
   }, [isLocked, isTorchOn]);
 
@@ -367,6 +380,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
       if (isLocked) {
         setIsLocked(false);
         setFrozenFrameUri(null); // Buka kembali frame kamera setelah berhasil kirim laporan
+        if (trackerRef.current) trackerRef.current.isValid = false;
       }
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
