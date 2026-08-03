@@ -1,10 +1,11 @@
 import { Report, IReport, TrashVolumeStatus } from '../models/ReportSchema';
-import { broadcastCriticalAlert } from './alertService';
+import { broadcastCriticalAlert, handleSpatialDeescalation } from './alertService';
 import { getSocketServer } from '../config/socket';
 import { uploadPhotoToFirebaseStorage } from './storageService';
 
 const DEFAULT_MAX_DISTANCE_METERS = 25000; // 25 km default radius filter
 const EVENT_NEW_REPORT = 'NEW_REPORT';
+const EVENT_REPORT_RESOLVED = 'REPORT_RESOLVED';
 
 export interface CreateReportPayload {
   reporterId: string;
@@ -104,3 +105,47 @@ export const getReportsByReporterService = async (reporterId: string): Promise<I
   }
 };
 
+/**
+ * Memanipulasi status laporan menjadi RESOLVED, menyimpan bukti foto setelah penanganan,
+ * dan memicu kalkulasi ulang de-eskalasi banjir rob dalam radius 500 meter.
+ */
+export const resolveReportService = async (reportId: string, userId: string, resolvedPhotoUrl?: string): Promise<IReport> => {
+  try {
+    let processedResolvedPhotoUrl = resolvedPhotoUrl;
+    if (resolvedPhotoUrl && resolvedPhotoUrl.startsWith('data:image/')) {
+      processedResolvedPhotoUrl = await uploadPhotoToFirebaseStorage(resolvedPhotoUrl, 'resolved_reports');
+    }
+
+    const updatedReport = await Report.findByIdAndUpdate(
+      reportId,
+      {
+        status: 'RESOLVED',
+        resolvedBy: userId,
+        resolvedAt: new Date(),
+        ...(processedResolvedPhotoUrl ? { resolvedPhotoUrl: processedResolvedPhotoUrl } : {}),
+      },
+      { new: true }
+    );
+
+    if (!updatedReport) {
+      throw new Error('Laporan tidak ditemukan di database.');
+    }
+
+    // Pancarkan event real-time pemutakhiran status ke seluruh klien
+    try {
+      const io = getSocketServer();
+      io.emit(EVENT_REPORT_RESOLVED, updatedReport);
+    } catch (socketError) {
+      console.warn('[Warning Socket Engine] Socket server belum aktif atau gagal mengirim event REPORT_RESOLVED.');
+    }
+
+    // Eksekusi evaluasi de-eskalasi zona aman
+    await handleSpatialDeescalation(updatedReport);
+
+    return updatedReport;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[Error Service - resolveReportService] Gagal menyelesaikan insiden laporan: ${errorMessage}`);
+    throw new Error(`Gagal menyelesaikan insiden: ${errorMessage}`);
+  }
+};

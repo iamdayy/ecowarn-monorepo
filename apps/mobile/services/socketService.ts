@@ -4,6 +4,16 @@ import { ServerReportResponse, getBaseServerUrl } from './apiService';
 const SOCKET_SERVER_URL = process.env.EXPO_PUBLIC_SOCKET_URL || getBaseServerUrl();
 const EVENT_CRITICAL_ZONE_ALERT = 'CRITICAL_ZONE_ALERT';
 const EVENT_NEW_REPORT = 'NEW_REPORT';
+const EVENT_REPORT_RESOLVED = 'REPORT_RESOLVED';
+const EVENT_ZONE_ALL_CLEAR = 'ZONE_ALL_CLEAR';
+
+export interface ZoneAllClearPayload {
+  alertId: string;
+  timestamp: string;
+  centerCoordinates: [number, number];
+  clearedRadiusMeters: number;
+  message: string;
+}
 
 export interface CriticalZoneAlertPayload {
   alertId: string;
@@ -21,7 +31,9 @@ let socketInstance: Socket | null = null;
  */
 export const connectRealtimeEngine = (
   onCriticalAlert: (payload: CriticalZoneAlertPayload) => void,
-  onNewReport: (report: ServerReportResponse) => void
+  onNewReport: (report: ServerReportResponse) => void,
+  onReportResolved?: (report: ServerReportResponse) => void,
+  onZoneAllClear?: (payload: ZoneAllClearPayload) => void
 ): Socket | null => {
   try {
     if (socketInstance && socketInstance.connected) {
@@ -46,6 +58,16 @@ export const connectRealtimeEngine = (
     socketInstance.on(EVENT_NEW_REPORT, (report: ServerReportResponse) => {
       console.log('[Real-Time Engine] Diterima penambahan laporan baru:', report._id);
       onNewReport(report);
+    });
+
+    socketInstance.on(EVENT_REPORT_RESOLVED, (report: ServerReportResponse) => {
+      console.log('[Real-Time Engine] Diterima penyelesaian laporan:', report._id);
+      if (onReportResolved) onReportResolved(report);
+    });
+
+    socketInstance.on(EVENT_ZONE_ALL_CLEAR, (payload: ZoneAllClearPayload) => {
+      console.log('[Real-Time De-escalation] Diterima siaran zona aman:', payload);
+      if (onZoneAllClear) onZoneAllClear(payload);
     });
 
     socketInstance.on('connect_error', (err: Error) => {

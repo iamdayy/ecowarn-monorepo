@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Linking, Platform } from 'react-native';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Haptics from 'expo-haptics';
-import { TrashVolumeStatus, SpatialCoordinates } from '../../types/ecowarn';
+import { TrashVolumeStatus, ReportStatus, SpatialCoordinates } from '../../types/ecowarn';
 import { EcoWarnColors, Spacing, BorderRadius } from '../../constants/theme';
 import { ReportDetailModal } from './ReportDetailModal';
 import { ServerReportResponse } from '../../services/apiService';
@@ -13,6 +13,7 @@ export interface MapReportItem {
   latitude: number;
   longitude: number;
   severity: TrashVolumeStatus;
+  status?: ReportStatus;
   createdAt?: string;
   photoUrl?: string;
   originalReport?: ServerReportResponse;
@@ -22,6 +23,7 @@ interface InteractiveMapProps {
   userLocation: SpatialCoordinates;
   reports: MapReportItem[];
   criticalZoneRadiusMeters?: number;
+  onReportUpdated?: (updatedReport: ServerReportResponse) => void;
 }
 
 const DEFAULT_CRITICAL_RADIUS = 500; // 500 meter radius zona bahaya rob/sumbatan
@@ -30,6 +32,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   userLocation,
   reports,
   criticalZoneRadiusMeters = DEFAULT_CRITICAL_RADIUS,
+  onReportUpdated,
 }) => {
   const [selectedReport, setSelectedReport] = useState<MapReportItem | null>(null);
   const { address } = useCoordinateAddress(selectedReport?.latitude, selectedReport?.longitude, 'short');
@@ -37,6 +40,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [mapType, setMapType] = useState<'standard' | 'hybrid'>('standard');
   const [is3D, setIs3D] = useState<boolean>(false);
   const [showLegend, setShowLegend] = useState<boolean>(false);
+  const [hideResolved, setHideResolved] = useState<boolean>(false);
   const mapRef = useRef<MapView>(null);
 
   // Animasi otomatis kamera ke koordinat GPS aktual saat peta dimuat atau lokasi diperbaiki
@@ -58,7 +62,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }, { duration: 1000 });
   };
 
-  const getMarkerColor = (severity: TrashVolumeStatus): string => {
+  const getMarkerColor = (severity: TrashVolumeStatus, status?: ReportStatus): string => {
+    if (status === 'RESOLVED') {
+      return '#00C853'; // Hijau steril bersinar
+    }
     switch (severity) {
       case 'Kritis':
         return EcoWarnColors.critical;
@@ -96,19 +103,21 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         scrollEnabled={true}
         pitchEnabled={true}
         toolbarEnabled={true}>
-        {reports.map((report) => (
+        {reports
+          .filter((report) => !hideResolved || report.status !== 'RESOLVED')
+          .map((report) => (
           <React.Fragment key={report.id}>
             <Marker
               coordinate={{ latitude: report.latitude, longitude: report.longitude }}
-              title={`Status: ${report.severity}`}
-              description="Klik untuk aksi toolbar aplikasi"
-              pinColor={getMarkerColor(report.severity)}
+              title={report.status === 'RESOLVED' ? '✔️ ZONA STERIL - SELESAI' : `Status: ${report.severity}`}
+              description={report.status === 'RESOLVED' ? 'Telah dibersihkan & diverifikasi' : 'Klik untuk aksi toolbar aplikasi'}
+              pinColor={getMarkerColor(report.severity, report.status)}
               onPress={() => {
                 Haptics.selectionAsync();
                 setSelectedReport(report);
               }}
             />
-            {report.severity === 'Kritis' && (
+            {report.severity === 'Kritis' && report.status !== 'RESOLVED' && (
               <Circle
                 center={{ latitude: report.latitude, longitude: report.longitude }}
                 radius={criticalZoneRadiusMeters}
@@ -156,6 +165,17 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           <Text style={styles.fabIcon}>ℹ️</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.fabButton, hideResolved && styles.fabButtonActive]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setHideResolved((prev) => !prev);
+          }}
+          activeOpacity={0.85}
+          accessibilityLabel="Toggle Sembunyikan Titik Selesai">
+          <Text style={styles.fabIcon}>{hideResolved ? '👁️' : '🧹'}</Text>
+        </TouchableOpacity>
+
         {/* Tombol FAB Fit Semua Titik Marker Laporan */}
         <TouchableOpacity
           style={styles.fabButton}
@@ -196,6 +216,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <View style={[styles.dot, { backgroundColor: EcoWarnColors.safe }]} />
             <Text style={styles.legendText}>Ringan</Text>
           </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.dot, { backgroundColor: '#00C853' }]} />
+            <Text style={styles.legendText}>Selesai (Zona Steril)</Text>
+          </View>
         </View>
       )}
 
@@ -204,7 +228,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         <View style={styles.appToolbarContainer}>
           <View style={styles.appToolbarHeader}>
             <Text style={styles.appToolbarTitle}>
-              📌 Titik Terpilih: <Text style={{ color: getMarkerColor(selectedReport.severity), fontWeight: '800' }}>{selectedReport.severity}</Text>
+              📌 Titik Terpilih: <Text style={{ color: getMarkerColor(selectedReport.severity, selectedReport.status), fontWeight: '800' }}>{selectedReport.status === 'RESOLVED' ? 'STERIL / SELESAI' : selectedReport.severity}</Text>
             </Text>
             <TouchableOpacity onPress={() => setSelectedReport(null)} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>✕</Text>
@@ -270,10 +294,15 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             coordinates: [selectedReport.longitude, selectedReport.latitude],
           },
           severity: selectedReport.severity,
+          status: selectedReport.status,
           photoUrl: selectedReport.photoUrl,
           createdAt: selectedReport.createdAt || new Date().toISOString(),
         }) : null}
         onClose={() => setDetailModalVisible(false)}
+        onReportUpdated={(updatedServerReport: ServerReportResponse) => {
+          setSelectedReport((prev) => prev ? { ...prev, status: updatedServerReport.status, originalReport: updatedServerReport } : null);
+          if (onReportUpdated) onReportUpdated(updatedServerReport);
+        }}
       />
     </View>
   );

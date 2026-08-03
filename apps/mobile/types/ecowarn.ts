@@ -1,3 +1,4 @@
+export type ReportStatus = 'ACTIVE' | 'IN_PROGRESS' | 'RESOLVED';
 export type TrashVolumeStatus = 'Ringan' | 'Sedang' | 'Kritis';
 
 export interface BoundingBox {

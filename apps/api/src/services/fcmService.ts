@@ -11,6 +11,9 @@ export interface FcmAlertPayload {
   centerCoordinates: [number, number];
   impactedRadiusMeters: number;
   totalNearbyReports: number;
+  title?: string;
+  type?: string;
+  color?: string;
 }
 
 /**
@@ -54,7 +57,7 @@ export const sendCriticalPushNotification = async (
       const multicastMessage = {
         tokens: batchTokens,
         notification: {
-          title: '⚠️ PERINGATAN DARURAT ECOWARN',
+          title: alertPayload.title || '⚠️ PERINGATAN DARURAT ECOWARN',
           body: alertPayload.message,
         },
         data: {
@@ -63,13 +66,13 @@ export const sendCriticalPushNotification = async (
           latitude: String(coordinates[1]),
           impactedRadiusMeters: String(alertPayload.impactedRadiusMeters),
           totalNearbyReports: String(alertPayload.totalNearbyReports),
-          type: 'CRITICAL_ZONE_ALERT',
+          type: alertPayload.type || 'CRITICAL_ZONE_ALERT',
         },
         android: {
           priority: 'high' as const,
           notification: {
             channelId: NOTIFICATION_CHANNEL_ID,
-            color: '#FF0000',
+            color: alertPayload.color || '#FF0000',
             priority: 'high' as const,
             defaultSound: true,
             defaultVibrateTimings: true,

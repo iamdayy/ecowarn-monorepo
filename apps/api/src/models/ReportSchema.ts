@@ -1,5 +1,6 @@
 import { Schema, model, Document } from 'mongoose';
 
+export type ReportStatus = 'ACTIVE' | 'IN_PROGRESS' | 'RESOLVED';
 export type TrashVolumeStatus = 'Ringan' | 'Sedang' | 'Kritis';
 
 export interface IReport extends Document {
@@ -9,7 +10,11 @@ export interface IReport extends Document {
     coordinates: [number, number]; // [longitude, latitude]
   };
   severity: TrashVolumeStatus;
+  status: ReportStatus;
   photoUrl?: string;
+  resolvedPhotoUrl?: string;
+  resolvedBy?: Schema.Types.ObjectId;
+  resolvedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -43,8 +48,27 @@ const reportSchema = new Schema<IReport>(
       enum: ['Ringan', 'Sedang', 'Kritis'],
       required: [true, 'Status volume sampah (severity) wajib diisi'],
     },
+    status: {
+      type: String,
+      enum: ['ACTIVE', 'IN_PROGRESS', 'RESOLVED'],
+      default: 'ACTIVE',
+      index: true,
+    },
     photoUrl: {
       type: String,
+      required: false,
+    },
+    resolvedPhotoUrl: {
+      type: String,
+      required: false,
+    },
+    resolvedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: false,
+    },
+    resolvedAt: {
+      type: Date,
       required: false,
     },
   },

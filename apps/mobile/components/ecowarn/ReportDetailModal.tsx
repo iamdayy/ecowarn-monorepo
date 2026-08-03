@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Modal,
   View,
@@ -8,16 +8,20 @@ import {
   ScrollView,
   Image,
   Dimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ServerReportResponse } from '../../services/apiService';
+import { ServerReportResponse, resolveReportInServer } from '../../services/apiService';
 import { EcoWarnColors, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 import { useCoordinateAddress } from '../../services/geocodingService';
+import { useAuth } from '../../context/AuthContext';
 
 interface ReportDetailModalProps {
   visible: boolean;
   report: ServerReportResponse | null;
   onClose: () => void;
+  onReportUpdated?: (updatedReport: ServerReportResponse) => void;
 }
 
 /**
@@ -28,7 +32,11 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   visible,
   report,
   onClose,
+  onReportUpdated,
 }) => {
+  const { user, token } = useAuth();
+  const [isResolving, setIsResolving] = useState<boolean>(false);
+
   if (!report) return null;
 
   const dateStr = report.createdAt
@@ -42,7 +50,48 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
       })
     : 'Waktu tidak terekam';
 
-  const getBadgeStyle = (severity: string) => {
+  const handleResolveIncident = async () => {
+    if (!token || user?.role !== 'Relawan') {
+      Alert.alert('Akses Ditolak', 'Hanya Relawan terverifikasi yang dapat menyelesaikan insiden bahaya ini.');
+      return;
+    }
+
+    Alert.alert(
+      'Konfirmasi Penyelesaian Insiden',
+      'Apakah tumpukan sampah dan ancaman banjir rob pada titik ini telah selesai ditangani di lapangan?',
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Ya, Selesai!',
+          style: 'default',
+          onPress: async () => {
+            try {
+              setIsResolving(true);
+              const updatedReport = await resolveReportInServer(report._id, token);
+              Alert.alert('✔️ Berhasil', 'Status zona tuntas diperbarui menjadi steril/selesai. De-eskalasi sedang dikirimkan ke warga!');
+              if (onReportUpdated) onReportUpdated(updatedReport);
+              onClose();
+            } catch (err) {
+              Alert.alert('Gagal', err instanceof Error ? err.message : 'Terjadi kesalahan saat memvalidasi resolusi laporan.');
+            } finally {
+              setIsResolving(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getBadgeStyle = (severity: string, status?: string) => {
+    if (status === 'RESOLVED') {
+      return {
+        bg: '#E8F5E9',
+        border: '#4CAF50',
+        text: '#1B5E20',
+        icon: '✔️',
+        title: 'ZONA STERIL & SELESAI DITANGANI',
+      };
+    }
     switch (severity) {
       case 'Kritis':
         return {
@@ -71,7 +120,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
     }
   };
 
-  const badge = getBadgeStyle(report.severity);
+  const badge = getBadgeStyle(report.severity, report.status);
   const [longitude, latitude] = report.location.coordinates;
   const { address } = useCoordinateAddress(latitude, longitude, 'full');
 
@@ -102,7 +151,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
               <Text style={styles.severityIcon}>{badge.icon}</Text>
               <View style={styles.severityTextWrapper}>
                 <Text style={[styles.severityLabel, { color: badge.text }]}>
-                  STATUS {report.severity.toUpperCase()}
+                  {report.status === 'RESOLVED' ? 'STATUS RESOLVED (SELESAI)' : `STATUS ${report.severity.toUpperCase()}`}
                 </Text>
                 <Text style={[styles.severitySublabel, { color: badge.text }]}>
                   {badge.title}
@@ -134,6 +183,23 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 </View>
               )}
             </View>
+
+            {/* === Bukti Foto Mitigasi (After Cleaning) === */}
+            {report.status === 'RESOLVED' && report.resolvedPhotoUrl && (
+              <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>✨ Bukti Mitigasi Selesai (After Cleaning)</Text>
+                <View style={styles.imageWrapper}>
+                  <Image
+                    source={{ uri: report.resolvedPhotoUrl }}
+                    style={styles.photo}
+                    resizeMode="cover"
+                  />
+                  <View style={[styles.photoBadge, { backgroundColor: 'rgba(27, 94, 32, 0.9)' }]}>
+                    <Text style={styles.photoBadgeText}>✔️ VERIFIKASI ZONA STERIL</Text>
+                  </View>
+                </View>
+              </View>
+            )}
 
             {/* === Telemetri & Lokasi Spasial === */}
             <View style={styles.sectionContainer}>
@@ -183,12 +249,29 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
 
           {/* === Footer Button === */}
           <View style={styles.footer}>
+            {user?.role === 'Relawan' && report.status !== 'RESOLVED' && (
+              <TouchableOpacity
+                style={styles.resolveButton}
+                onPress={handleResolveIncident}
+                disabled={isResolving}
+                activeOpacity={0.8}
+              >
+                {isResolving ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.resolveButtonText}>✨ Tandai Selesai Ditangani</Text>
+                )}
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
-              style={styles.actionButton}
+              style={[styles.actionButton, user?.role === 'Relawan' && report.status !== 'RESOLVED' && styles.actionButtonSecondary]}
               onPress={onClose}
               activeOpacity={0.8}
             >
-              <Text style={styles.actionButtonText}>Tutup Detail Laporan</Text>
+              <Text style={[styles.actionButtonText, user?.role === 'Relawan' && report.status !== 'RESOLVED' && styles.actionButtonTextSecondary]}>
+                Tutup Detail Laporan
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -382,5 +465,29 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
+  },
+  resolveButton: {
+    backgroundColor: '#00C853',
+    paddingVertical: 14,
+    borderRadius: BorderRadius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+    ...Shadows.button,
+  },
+  resolveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  actionButtonSecondary: {
+    backgroundColor: EcoWarnColors.surface,
+    borderWidth: 1,
+    borderColor: EcoWarnColors.border,
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  actionButtonTextSecondary: {
+    color: EcoWarnColors.textSecondary,
   },
 });

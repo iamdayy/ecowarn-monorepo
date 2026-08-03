@@ -10,6 +10,7 @@ import {
   connectRealtimeEngine,
   disconnectRealtimeEngine,
   CriticalZoneAlertPayload,
+  ZoneAllClearPayload,
 } from '../../services/socketService';
 
 export const MapScreenView: React.FC = () => {
@@ -24,6 +25,7 @@ export const MapScreenView: React.FC = () => {
     longitude: report.location.coordinates[0],
     latitude: report.location.coordinates[1],
     severity: report.severity,
+    status: report.status || 'ACTIVE',
     createdAt: report.createdAt,
     photoUrl: report.photoUrl,
     originalReport: report,
@@ -85,12 +87,33 @@ export const MapScreenView: React.FC = () => {
       ]);
     };
 
-    connectRealtimeEngine(handleCriticalAlert, handleNewReport);
+    const handleReportResolved = (resolvedReport: ServerReportResponse) => {
+      const updatedMapItem = formatServerReportToMapItem(resolvedReport);
+      setActiveReports((prevReports) =>
+        prevReports.map((item) => (item.id === updatedMapItem.id ? updatedMapItem : item))
+      );
+    };
+
+    const handleZoneAllClear = (payload: ZoneAllClearPayload) => {
+      Alert.alert(
+        '🟢 ZONA AMAN TERVERIFIKASI!',
+        `${payload.message}\nAncaman banjir rob dan sumbatan sampah pada lingkup ${payload.clearedRadiusMeters} meter tuntas diatasi oleh relawan di lapangan.`
+      );
+    };
+
+    connectRealtimeEngine(handleCriticalAlert, handleNewReport, handleReportResolved, handleZoneAllClear);
 
     return () => {
       disconnectRealtimeEngine();
     };
   }, []);
+
+  const handleReportUpdated = (updatedReport: ServerReportResponse) => {
+    const updatedMapItem = formatServerReportToMapItem(updatedReport);
+    setActiveReports((prevReports) =>
+      prevReports.map((item) => (item.id === updatedMapItem.id ? updatedMapItem : item))
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -100,7 +123,11 @@ export const MapScreenView: React.FC = () => {
         accentColor={EcoWarnColors.primary}
         flatBottom={true}
       />
-      <InteractiveMap userLocation={userLocation} reports={activeReports} />
+      <InteractiveMap
+        userLocation={userLocation}
+        reports={activeReports}
+        onReportUpdated={handleReportUpdated}
+      />
     </View>
   );
 };

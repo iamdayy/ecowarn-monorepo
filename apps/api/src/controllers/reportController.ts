@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../types/authRequest';
-import { createReportService, getReportsService, getReportsByReporterService, CreateReportPayload } from '../services/reportService';
+import { createReportService, getReportsService, getReportsByReporterService, resolveReportService, CreateReportPayload } from '../services/reportService';
 
 export const createReport = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -102,3 +102,41 @@ export const getReporterHistory = async (req: AuthRequest, res: Response): Promi
   }
 };
 
+export const resolveReport = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { resolvedPhotoUrl } = req.body || {};
+
+    if (!req.user || !req.user.userId) {
+      res.status(401).json({
+        success: false,
+        message: 'Tidak terotentikasi. Identitas relawan pembersih tidak terverifikasi.',
+      });
+      return;
+    }
+
+    if (!id) {
+      res.status(400).json({
+        success: false,
+        message: 'Parameter id laporan wajib disematkan pada rute URL.',
+      });
+      return;
+    }
+
+    const report = await resolveReportService(id, req.user.userId, resolvedPhotoUrl);
+
+    res.status(200).json({
+      success: true,
+      message: 'Laporan insiden berhasil diselesaikan. De-eskalasi zona telah diverifikasi.',
+      data: report,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[Error Controller - resolveReport] Gagal memvalidasi atau memproses PATCH /api/reports/:id/resolve: ${errorMessage}`);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi galat internal pada peladen saat memantapkan penyelesaian insiden.',
+      error: errorMessage,
+    });
+  }
+};
