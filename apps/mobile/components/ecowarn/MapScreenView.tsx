@@ -25,6 +25,8 @@ export const MapScreenView: React.FC = () => {
     latitude: report.location.coordinates[1],
     severity: report.severity,
     createdAt: report.createdAt,
+    photoUrl: report.photoUrl,
+    originalReport: report,
   });
 
   const loadReportsFromServer = useCallback(async (latitude: number, longitude: number) => {

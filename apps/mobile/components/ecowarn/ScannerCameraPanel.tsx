@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, StyleSheet, Alert, AppState, AppStateStatus } from 'react-native';
+import { View, StyleSheet, Alert, AppState, AppStateStatus, Image } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { Camera, useCameraDevice, useFrameProcessor, runAtTargetFps, Frame } from 'react-native-vision-camera';
 import { Worklets } from 'react-native-worklets-core';
@@ -8,6 +8,8 @@ import { useResizePlugin } from 'vision-camera-resize-plugin';
 import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as Location from 'expo-location';
+import ViewShot, { captureRef } from 'react-native-view-shot';
 import { TrashVolumeStatus, ReportPayload, SpatialCoordinates, BoundingBox } from '../../types/ecowarn';
 import { processYoloInference } from '../../utils/yoloPostProcessor';
 import { useTrashDetectorModel } from '../../services/aiService';
@@ -72,6 +74,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
 }) => {
   const device = useCameraDevice('back');
   const cameraRef = useRef<Camera>(null);
+  const viewShotRef = useRef<ViewShot>(null);
   const [hasPermission, setHasPermission] = useState<boolean>(false);
   const [detectedSeverity, setDetectedSeverity] = useState<TrashVolumeStatus>('Ringan');
   const [currentRatio, setCurrentRatio] = useState<number>(0.0);
@@ -79,8 +82,9 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   const [isReporting, setIsReporting] = useState<boolean>(false);
   const { resize } = useResizePlugin();
 
-  // State penguncian deteksi (Detection Lock)
+  // State penguncian deteksi (Detection Lock & Frame Freeze)
   const [isLocked, setIsLocked] = useState<boolean>(false);
+  const [frozenFrameUri, setFrozenFrameUri] = useState<string | null>(null);
   const isLockedRef = useRef<boolean>(false);
   useEffect(() => {
     isLockedRef.current = isLocked;
@@ -243,7 +247,6 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
               frame.height,
               CONFIDENCE_THRESHOLD
             );
-            console.log('detection', detection)
 
             updateDetectionResult(detection.ratio, detection.severity, detection.boundingBox);
           }
@@ -256,53 +259,126 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
     [boxedModel, inputConfig, outputConfig, resize, updateDetectionResult, logWorkletError]
   );
 
+  const handleToggleLock = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const nextLocked = !isLocked;
+    setIsLocked(nextLocked);
+    if (nextLocked) {
+      // Saat pengguna mengunci bounding box, rekam snapshot frame kamera agar
+      // visual frame berhenti bergerak (terkunci sempurna menyatu dengan boks AI)
+      if (cameraRef.current) {
+        try {
+          const snapshot = await cameraRef.current.takePhoto({
+            flash: isTorchOn ? 'on' : 'off',
+          });
+          if (snapshot && snapshot.path) {
+            const fileUri = snapshot.path.startsWith('file://') ? snapshot.path : `file://${snapshot.path}`;
+            setFrozenFrameUri(fileUri);
+            console.log('[Camera Frame Lock] Berhasil membekukan frame secara sinkron dengan bounding box:', fileUri);
+          }
+        } catch (error) {
+          console.warn('[Camera Frame Lock] Gagal memotret frame beku saat penguncian:', error);
+        }
+      }
+    } else {
+      // Buka kunci mengembalikan kamera ke mode siaran waktu nyata (live stream)
+      setFrozenFrameUri(null);
+    }
+  }, [isLocked, isTorchOn]);
+
   const handleSendReport = useCallback(async () => {
     try {
       setIsReporting(true);
-      let photoUrl: string | undefined = undefined;
 
-      // Ambil foto lapangan secara otentik dan konversi ke Base64 untuk verifikasi publik
-      if (cameraRef.current) {
+      // 1. SIMULTAN GPS RE-FETCH: Mulai mengambil koordinat satelit berakurasi tinggi seketika tombol ditekan!
+      // Berlangsung di background secara paralel sewaktu pemotretan dan kompresi foto diproses agar tidak ada latensi ekstra.
+      console.log('[Scanner GPS Re-Fetch] Mengaktifkan pembaruan koordinat aktual untuk pengiriman...');
+      const gpsPromise = Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation }),
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('GPS Refetch Timeout')), 5000)),
+      ]).catch(() => null);
+
+      let photoUrl: string | undefined = undefined;
+      let targetUri: string | null = frozenFrameUri;
+
+      // Jika pengguna menekan kirim tanpa mengunci bounding box terlebih dahulu, potret dan bekukan frame sekarang
+      if (!targetUri && cameraRef.current) {
         try {
           const photo = await cameraRef.current.takePhoto({
             flash: isTorchOn ? 'on' : 'off',
           });
           if (photo && photo.path) {
-            // Memastikan URI berskema file:// yang sah
-            const fileUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
-            
-            // Kompresi & resize gambar menggunakan expo-image-manipulator sebelum dikirim ke peladen.
-            // Langkah ini wajib untuk mencegah galat HTTP 413 "Request Entity Too Large" (Vercel serverless max 4.5MB)
-            // sekaligus mempercepat waktu transmisi data di wilayah pesisir dengan sinyal terbatas.
-            try {
-              const manipulated = await ImageManipulator.manipulateAsync(
-                fileUri,
-                [{ resize: { width: 800 } }], // Resize lebar 800px (cukup tajam dan hemat bandwidth)
-                { compress: 0.65, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-              );
-              if (manipulated.base64) {
-                photoUrl = `data:image/jpeg;base64,${manipulated.base64}`;
-                console.log(`[Camera Snapshot] Sukses mengompresi foto (Ukuran Base64: ~${Math.round(manipulated.base64.length / 1024)} KB)`);
-              } else {
-                throw new Error('Manipulator tidak mengembalikan string Base64');
-              }
-            } catch (manipError) {
-              console.warn('[Camera Snapshot] Manipulator gagal, fallback ke pembacaan sistem berkas murni:', manipError);
-              const base64Image = await FileSystem.readAsStringAsync(fileUri, {
-                encoding: FileSystem.EncodingType.Base64,
-              });
-              photoUrl = `data:image/jpeg;base64,${base64Image}`;
-            }
+            targetUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+            setFrozenFrameUri(targetUri);
+            setIsLocked(true);
+            // Beri jeda 150ms agar antarmuka React Native sempat menampilkan image beku & overlay bounding box
+            await new Promise((resolve) => setTimeout(resolve, 150));
           }
         } catch (photoErr) {
           console.warn('[Camera Snapshot] Gagal memotret bukti lapangan:', photoErr);
         }
       }
 
-      // PAYLOAD: Kirim koordinat, status keparahan, dan bukti foto ke peladen
+      // Gunakan captureRef dari react-native-view-shot untuk merekam Bounding Box AI langsung menyatu ke dalam foto!
+      if (viewShotRef.current && (targetUri || detectedBox)) {
+        try {
+          const bakedUri = await captureRef(viewShotRef, {
+            format: 'jpg',
+            quality: 0.75,
+            result: 'tmpfile',
+          });
+          if (bakedUri) {
+            targetUri = bakedUri.startsWith('file://') ? bakedUri : `file://${bakedUri}`;
+            console.log('[Camera Bounding Box Capture] Berhasil menyematkan Bounding Box AI secara nyata pada foto:', targetUri);
+          }
+        } catch (captureError) {
+          console.warn('[Warning ViewShot] Gagal merekam ViewShot dengan Bounding Box, fallback ke foto asli:', captureError);
+        }
+      }
+
+      if (targetUri) {
+        try {
+          // Kompresi & resize gambar menggunakan expo-image-manipulator
+          const manipulated = await ImageManipulator.manipulateAsync(
+            targetUri,
+            [{ resize: { width: 800 } }], // Resize lebar 800px (hemat bandwidth dan tidak terkena 413 error)
+            { compress: 0.65, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+          );
+          if (manipulated.base64) {
+            photoUrl = `data:image/jpeg;base64,${manipulated.base64}`;
+            console.log(`[Camera Snapshot] Sukses mempersiapkan foto (Ukuran Base64: ~${Math.round(manipulated.base64.length / 1024)} KB)`);
+          } else {
+            throw new Error('Manipulator tidak mengembalikan string Base64');
+          }
+        } catch (manipError) {
+          console.warn('[Camera Snapshot] Manipulator gagal, fallback ke pembacaan sistem berkas murni:', manipError);
+          const base64Image = await FileSystem.readAsStringAsync(targetUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          photoUrl = `data:image/jpeg;base64,${base64Image}`;
+        }
+      }
+
+      // 2. Tuntaskan penerimaan koordinat aktual yang sudah difetching sejak awal tombol ditekan
+      let finalLat = currentLocation.latitude;
+      let finalLng = currentLocation.longitude;
+      try {
+        const freshPos = await gpsPromise;
+        if (freshPos && typeof freshPos !== 'number') {
+          finalLat = freshPos.coords.latitude;
+          finalLng = freshPos.coords.longitude;
+          console.log(`[Scanner GPS Re-Fetch] Sukses mengunci koordinat aktual saat pengiriman: ${finalLat}, ${finalLng} (Akurasi: ±${Math.round(freshPos.coords.accuracy || 0)}m)`);
+        } else {
+          console.log('[Scanner GPS Re-Fetch] Waktu habis/gagal, menggunakan koordinat pantauan aktif saat ini.');
+        }
+      } catch (err) {
+        console.warn('[Warning Scanner GPS Re-Fetch] Gagal merebut posisi terbaru:', err);
+      }
+
+      // PAYLOAD: Kirim koordinat akurat terbaru, status keparahan, dan bukti foto ke peladen
       const payload: ReportPayload = {
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
+        latitude: finalLat,
+        longitude: finalLng,
         severity: detectedSeverity,
         photoUrl,
       };
@@ -310,7 +386,8 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
       await onSendReport(payload);
       Alert.alert('Sukses', `Laporan status ${detectedSeverity} berhasil dikirim ke peladen.`);
       if (isLocked) {
-        setIsLocked(false); // Otomatis buka kunci setelah sukses melapor
+        setIsLocked(false);
+        setFrozenFrameUri(null); // Buka kembali frame kamera setelah berhasil kirim laporan
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -319,7 +396,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
     } finally {
       setIsReporting(false);
     }
-  }, [currentLocation, detectedSeverity, onSendReport, isTorchOn, isLocked]);
+  }, [currentLocation, detectedSeverity, onSendReport, isTorchOn, isLocked, frozenFrameUri, detectedBox]);
 
   // === Tampilan Belum Diizinkan ===
   if (!hasPermission || !device) {
@@ -336,31 +413,38 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   // === Tampilan Utama Scanner ===
   return (
     <View style={styles.container}>
-      <MemoizedCameraView
-        cameraRef={cameraRef}
-        device={device}
-        frameProcessor={frameProcessor}
-        isActive={isCameraActive}
-        torch={isTorchOn ? 'on' : 'off'}
-        zoom={zoomLevel}
-      />
-      <ScannerHUDOverlay
-        severity={detectedSeverity}
-        ratio={currentRatio}
-        isModelLoaded={!!model}
-        boundingBox={detectedBox}
-        isTorchOn={isTorchOn}
-        onToggleTorch={() => setIsTorchOn((prev) => !prev)}
-        zoomLevel={zoomLevel}
-        onCycleZoom={() => setZoomLevel((prev) => (prev === 1 ? 2 : prev === 2 ? 3 : 1))}
-        isHapticMuted={isHapticMuted}
-        onToggleHapticMute={() => setIsHapticMuted((prev) => !prev)}
-        isLocked={isLocked}
-        onToggleLock={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          setIsLocked((prev) => !prev);
-        }}
-      />
+      <ViewShot ref={viewShotRef} style={styles.viewShotContainer} options={{ format: 'jpg', quality: 0.85 }}>
+        <MemoizedCameraView
+          cameraRef={cameraRef}
+          device={device}
+          frameProcessor={frameProcessor}
+          isActive={isCameraActive}
+          torch={isTorchOn ? 'on' : 'off'}
+          zoom={zoomLevel}
+        />
+        {/* === Frame Beku (Frozen Snapshot) Saat Penguncian Bounding Box Aktif === */}
+        {isLocked && frozenFrameUri && (
+          <Image
+            source={{ uri: frozenFrameUri }}
+            style={StyleSheet.absoluteFillObject}
+            resizeMode="cover"
+          />
+        )}
+        <ScannerHUDOverlay
+          severity={detectedSeverity}
+          ratio={currentRatio}
+          isModelLoaded={!!model}
+          boundingBox={detectedBox}
+          isTorchOn={isTorchOn}
+          onToggleTorch={() => setIsTorchOn((prev) => !prev)}
+          zoomLevel={zoomLevel}
+          onCycleZoom={() => setZoomLevel((prev) => (prev === 1 ? 2 : prev === 2 ? 3 : 1))}
+          isHapticMuted={isHapticMuted}
+          onToggleHapticMute={() => setIsHapticMuted((prev) => !prev)}
+          isLocked={isLocked}
+          onToggleLock={handleToggleLock}
+        />
+      </ViewShot>
       <ScannerActionFooter
         severity={detectedSeverity}
         isReporting={isReporting}
@@ -376,5 +460,9 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     backgroundColor: '#000000',
+  },
+  viewShotContainer: {
+    flex: 1,
+    position: 'relative',
   },
 });

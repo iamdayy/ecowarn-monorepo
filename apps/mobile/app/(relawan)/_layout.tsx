@@ -26,6 +26,7 @@ export default function RelawanLayout() {
         name="scanner"
         options={{
           tabBarLabel: 'Pemindai',
+          tabBarStyle: { display: 'none' },
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'camera' : 'camera-outline'} size={22} color={color} />
           ),

@@ -64,18 +64,20 @@ const ScannerActionFooterInner: React.FC<ScannerActionFooterProps> = ({
   };
 
   return (
-    <View style={[styles.container, { bottom: Math.max(insets.bottom, 16) + 75 }]}>
+    <View style={[styles.container, { bottom: Math.max(insets.bottom, 14) + 10 }]}>
       <View style={styles.contentArea}>
         {/* === GPS Telemetry & Accuracy Chip === */}
         {currentLocation && (
           <View style={styles.gpsChipContainer}>
             <Text style={styles.gpsChipText}>
-              {currentLocation.accuracy != null && currentLocation.accuracy < 15
-                ? `📡 GPS AKURAT (±${Math.round(currentLocation.accuracy)}m)`
+              {currentLocation.accuracy != null && currentLocation.accuracy <= 15
+                ? `🛰️ GPS AKURAT (±${Math.round(currentLocation.accuracy)}m)`
+                : currentLocation.accuracy != null && currentLocation.accuracy <= 35
+                ? `📡 GPS MENENGAH (±${Math.round(currentLocation.accuracy)}m)`
                 : currentLocation.accuracy != null
-                ? `📡 GPS AKURASI MENENGAH (±${Math.round(currentLocation.accuracy)}m)`
-                : `📡 MENCARI SINYAL GPS...`}
-              {` · ${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}`}
+                ? `📡 SINYAL LEMAH (±${Math.round(currentLocation.accuracy)}m)`
+                : `📡 MENCARI SINYAL SATELIT...`}
+              {` · ${currentLocation.latitude.toFixed(5)}, ${currentLocation.longitude.toFixed(5)}`}
             </Text>
           </View>
         )}
@@ -106,7 +108,7 @@ const ScannerActionFooterInner: React.FC<ScannerActionFooterProps> = ({
 
         <View style={styles.privacyCard}>
           <Text style={styles.privacyText}>
-            📸 <Text style={styles.privacyBold}>Verifikasi Otentik:</Text> Foto bukti lapangan &amp; koordinat spasial disematkan otomatis.
+            🔒 <Text style={styles.privacyBold}>Verifikasi Otentik:</Text> Foto &amp; koord. spasial tersematkan.
           </Text>
         </View>
       </View>
@@ -164,23 +166,23 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   privacyCard: {
-    marginTop: Spacing.md - 2,
+    marginTop: Spacing.sm + 2,
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.sm + 2,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.04)',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   privacyText: {
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 11,
     textAlign: 'center',
-    lineHeight: 16,
+    letterSpacing: 0.2,
   },
   privacyBold: {
     fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.75)',
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   gpsChipContainer: {
     alignSelf: 'center',

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import * as Location from 'expo-location';
+import { useIsFocused } from '@react-navigation/native';
 import { ScannerCameraPanel } from '../../components/ecowarn/ScannerCameraPanel';
 import { ReportPayload, SpatialCoordinates } from '../../types/ecowarn';
 import { sendReportToServer } from '../../services/apiService';
@@ -8,6 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function RelawanScannerScreen() {
   const { token } = useAuth();
+  const isFocused = useIsFocused();
   const [userLocation, setUserLocation] = useState<SpatialCoordinates>({
     latitude: -6.200000,
     longitude: 106.816666,
@@ -15,7 +17,11 @@ export default function RelawanScannerScreen() {
   });
 
   useEffect(() => {
+    // Hanya jalankan pelacakan GPS intensif saat layar Scanner benar-benar sedang aktif (focused)
+    if (!isFocused) return;
+
     let locationSubscription: Location.LocationSubscription | null = null;
+    let isMounted = true;
 
     const startLocationWatcher = async () => {
       try {
@@ -25,31 +31,49 @@ export default function RelawanScannerScreen() {
           return;
         }
 
-        // Ambil lokasi awal secara cepat
-        const initialLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        setUserLocation({
-          latitude: initialLocation.coords.latitude,
-          longitude: initialLocation.coords.longitude,
-          accuracy: initialLocation.coords.accuracy,
-          timestamp: initialLocation.timestamp,
-        });
+        // 1. Ambil koordinat GPS terakhir yang diketahui agar antarmuka langsung mendapatkan lokasi instan
+        const lastKnown = await Location.getLastKnownPositionAsync({});
+        if (lastKnown && isMounted) {
+          setUserLocation({
+            latitude: lastKnown.coords.latitude,
+            longitude: lastKnown.coords.longitude,
+            accuracy: lastKnown.coords.accuracy,
+            timestamp: lastKnown.timestamp,
+          });
+        }
 
-        // Aktifkan live GPS tracking berakurasi tinggi saat relawan berpatroli
+        // 2. Ambil lokasi aktual dengan tingkat akurasi maksimal & timeout 5 detik agar tidak pernah gantung
+        const freshLocation = await Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation }),
+          new Promise<null>((_, reject) => setTimeout(() => reject(new Error('GPS Request Timeout')), 5000)),
+        ]).catch(() => null);
+
+        if (freshLocation && typeof freshLocation !== 'number' && isMounted) {
+          setUserLocation({
+            latitude: freshLocation.coords.latitude,
+            longitude: freshLocation.coords.longitude,
+            accuracy: freshLocation.coords.accuracy,
+            timestamp: freshLocation.timestamp,
+          });
+        }
+
+        // 3. Aktifkan live GPS tracking berakurasi navigasi (BestForNavigation)
+        // PERHATIAN: distanceInterval dihindari (dihapus) agar Android/iOS tetap mengirimkan pembaruan
+        // state sinyal GPS secara aktif setiap 1.5 detik meskipun relawan berdiri diam mengarahkan kamera!
         locationSubscription = await Location.watchPositionAsync(
           {
-            accuracy: Location.Accuracy.High,
-            timeInterval: 3000, // Perbaharui setiap 3 detik
-            distanceInterval: 2, // Perbaharui jika bergeser > 2 meter
+            accuracy: Location.Accuracy.BestForNavigation,
+            timeInterval: 1500, // Perbaharui state setiap 1.5 detik
           },
           (newLocation) => {
-            setUserLocation({
-              latitude: newLocation.coords.latitude,
-              longitude: newLocation.coords.longitude,
-              accuracy: newLocation.coords.accuracy,
-              timestamp: newLocation.timestamp,
-            });
+            if (isMounted && newLocation && newLocation.coords) {
+              setUserLocation({
+                latitude: newLocation.coords.latitude,
+                longitude: newLocation.coords.longitude,
+                accuracy: newLocation.coords.accuracy,
+                timestamp: newLocation.timestamp,
+              });
+            }
           }
         );
       } catch (error) {
@@ -61,11 +85,12 @@ export default function RelawanScannerScreen() {
     startLocationWatcher();
 
     return () => {
+      isMounted = false;
       if (locationSubscription) {
         locationSubscription.remove();
       }
     };
-  }, []);
+  }, [isFocused]);
 
   const handleSendReport = useCallback(async (payload: ReportPayload) => {
     try {

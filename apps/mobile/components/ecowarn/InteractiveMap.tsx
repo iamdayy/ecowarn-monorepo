@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Linking, Platform
 import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import { TrashVolumeStatus, SpatialCoordinates } from '../../types/ecowarn';
 import { EcoWarnColors, Spacing, BorderRadius } from '../../constants/theme';
+import { ReportDetailModal } from './ReportDetailModal';
+import { ServerReportResponse } from '../../services/apiService';
 
 export interface MapReportItem {
   id: string;
@@ -10,6 +12,8 @@ export interface MapReportItem {
   longitude: number;
   severity: TrashVolumeStatus;
   createdAt?: string;
+  photoUrl?: string;
+  originalReport?: ServerReportResponse;
 }
 
 interface InteractiveMapProps {
@@ -26,6 +30,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   criticalZoneRadiusMeters = DEFAULT_CRITICAL_RADIUS,
 }) => {
   const [selectedReport, setSelectedReport] = useState<MapReportItem | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState<boolean>(false);
   const [mapType, setMapType] = useState<'standard' | 'hybrid'>('standard');
   const [is3D, setIs3D] = useState<boolean>(false);
   const [showLegend, setShowLegend] = useState<boolean>(false);
@@ -194,35 +199,61 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           </Text>
 
           <View style={styles.appToolbarActions}>
+            {/* Tombol utama untuk melihat detail & foto tanpa pindah halaman */}
             <TouchableOpacity
-              style={styles.actionBtnPrimary}
-              onPress={() => {
-                const url = Platform.select({
-                  ios: `maps://0,0?q=${selectedReport.latitude},${selectedReport.longitude}`,
-                  android: `geo:${selectedReport.latitude},${selectedReport.longitude}?q=${selectedReport.latitude},${selectedReport.longitude}(Titik+EcoWarn)`,
-                  default: `https://www.google.com/maps/dir/?api=1&destination=${selectedReport.latitude},${selectedReport.longitude}`
-                });
-                if (url) Linking.openURL(url);
-              }}
+              style={styles.actionBtnDetail}
+              onPress={() => setDetailModalVisible(true)}
               activeOpacity={0.85}>
-              <Text style={styles.actionBtnPrimaryText}>🗺️ Buka Rute (Google Maps)</Text>
+              <Text style={styles.actionBtnDetailText}>📸 Lihat Detail & Bukti Foto</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.actionBtnSecondary}
-              onPress={() => {
-                mapRef.current?.animateCamera({
-                  center: { latitude: selectedReport.latitude, longitude: selectedReport.longitude },
-                  zoom: 18,
-                  pitch: 55,
-                }, { duration: 800 });
-              }}
-              activeOpacity={0.85}>
-              <Text style={styles.actionBtnSecondaryText}>🔍 3D Fokus</Text>
-            </TouchableOpacity>
+            <View style={styles.actionBtnRow}>
+              <TouchableOpacity
+                style={styles.actionBtnPrimary}
+                onPress={() => {
+                  const url = Platform.select({
+                    ios: `maps://0,0?q=${selectedReport.latitude},${selectedReport.longitude}`,
+                    android: `geo:${selectedReport.latitude},${selectedReport.longitude}?q=${selectedReport.latitude},${selectedReport.longitude}(Titik+EcoWarn)`,
+                    default: `https://www.google.com/maps/dir/?api=1&destination=${selectedReport.latitude},${selectedReport.longitude}`
+                  });
+                  if (url) Linking.openURL(url);
+                }}
+                activeOpacity={0.85}>
+                <Text style={styles.actionBtnPrimaryText}>🗺️ Rute Navigasi</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionBtnSecondary}
+                onPress={() => {
+                  mapRef.current?.animateCamera({
+                    center: { latitude: selectedReport.latitude, longitude: selectedReport.longitude },
+                    zoom: 18,
+                    pitch: 55,
+                  }, { duration: 800 });
+                }}
+                activeOpacity={0.85}>
+                <Text style={styles.actionBtnSecondaryText}>🔍 3D Fokus</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}
+
+      {/* Modal Detail & Foto Laporan Spasial yang Langsung Dapat Diakses Dari Titik Peta */}
+      <ReportDetailModal
+        visible={detailModalVisible}
+        report={selectedReport ? (selectedReport.originalReport || {
+          _id: selectedReport.id,
+          location: {
+            type: 'Point',
+            coordinates: [selectedReport.longitude, selectedReport.latitude],
+          },
+          severity: selectedReport.severity,
+          photoUrl: selectedReport.photoUrl,
+          createdAt: selectedReport.createdAt || new Date().toISOString(),
+        }) : null}
+        onClose={() => setDetailModalVisible(false)}
+      />
     </View>
   );
 };
@@ -347,8 +378,30 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   appToolbarActions: {
+    flexDirection: 'column',
+    gap: Spacing.sm,
+  },
+  actionBtnRow: {
     flexDirection: 'row',
     gap: Spacing.sm,
+  },
+  actionBtnDetail: {
+    backgroundColor: '#10B981',
+    paddingVertical: Spacing.sm + 4,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  actionBtnDetailText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   actionBtnPrimary: {
     flex: 1,
@@ -364,6 +417,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   actionBtnSecondary: {
+    flex: 1,
     backgroundColor: EcoWarnColors.surface,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 2,

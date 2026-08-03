@@ -9,6 +9,9 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { TrashVolumeStatus, BoundingBox } from '../../types/ecowarn';
 import { SeverityStatusBadge } from './SeverityStatusBadge';
 import { EcoWarnColors, Spacing } from '../../constants/theme';
@@ -52,6 +55,7 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
   onToggleLock,
 }) => {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
   // === Animasi Pulse Dot (berkedip saat model aktif) ===
@@ -271,7 +275,7 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
           animatedBoxStyle,
           { borderColor: boxColor, backgroundColor: boxBgColor },
         ]}
-        pointerEvents="none"
+        pointerEvents="box-none"
       >
         {/* Aksen sudut Bounding Box bergaya futuristik */}
         <View style={[styles.boxCorner, styles.boxCornerTL, { borderColor: boxColor }]} />
@@ -282,29 +286,43 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
         {/* Label Indikator AI (Tingkat Keparahan & % Area) */}
         <View style={[styles.boxLabel, { backgroundColor: boxColor }]}>
           <Text style={styles.boxLabelText}>
-            {`🗑️ ${severity.toUpperCase()} · ${(ratio * 100).toFixed(0)}% AREA`}
+            {isLocked
+              ? `🔒 TERKUNCI · ${severity.toUpperCase()} · ${(ratio * 100).toFixed(0)}% AREA`
+              : `🗑️ ${severity.toUpperCase()} · ${(ratio * 100).toFixed(0)}% AREA`}
           </Text>
         </View>
       </Animated.View>
 
-      {/* === Header: AI Status Chip + Severity Badge === */}
-      <View style={[styles.topSection, { paddingTop: insets.top + Spacing.sm }]}>
-        <View style={styles.aiChip}>
-          <Animated.View
-            style={[
-              styles.pulseDot,
-              isModelLoaded
-                ? { backgroundColor: EcoWarnColors.safe }
-                : { backgroundColor: EcoWarnColors.textDisabled },
-              isModelLoaded && pulseStyle,
-            ]}
-          />
-          <Text style={styles.aiChipText}>
-            {isModelLoaded ? 'ECOWARN AI AKTIF' : 'MEMUAT MODEL...'}
-          </Text>
-        </View>
-        <View style={styles.badgeWrapper}>
-          <SeverityStatusBadge severity={severity} ratio={ratio} />
+      {/* === Header Atas: Navigasi Kembali & Chip Status AI yang Ringkas dalam 1 Baris === */}
+      <View style={[styles.topSection, { paddingTop: Math.max(insets.top, 12) + Spacing.xs }]}>
+        <View style={styles.topHeaderRow}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.navigate('/(relawan)');
+            }}
+            activeOpacity={0.8}
+            accessibilityLabel="Kembali ke Peta"
+          >
+            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <View style={styles.headerChipsRow}>
+            <View style={styles.aiChipCompact}>
+              <Animated.View
+                style={[
+                  styles.pulseDot,
+                  isModelLoaded ? { backgroundColor: EcoWarnColors.safe } : { backgroundColor: EcoWarnColors.textDisabled },
+                  isModelLoaded && pulseStyle,
+                ]}
+              />
+              <Text style={styles.aiChipTextCompact}>
+                {isModelLoaded ? 'AI AKTIF' : 'MEMUAT...'}
+              </Text>
+            </View>
+            <SeverityStatusBadge severity={severity} ratio={ratio} />
+          </View>
         </View>
 
         {/* === Horizontal Action Toolbar (Torch, Zoom, Mute/Haptic Toggle) === */}
@@ -336,13 +354,14 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
               <Text style={styles.controlPillText}>{isHapticMuted ? '🔕 SILENT' : '🔔 ALERT ON'}</Text>
             </TouchableOpacity>
           )}
-          {onToggleLock && (
+          {/* Tampilkan tombol buka kunci di atas hanya apabila kondisi frame sedang terkunci */}
+          {onToggleLock && isLocked && (
             <TouchableOpacity
-              style={[styles.controlPill, isLocked && styles.controlPillLocked]}
+              style={[styles.controlPill, styles.controlPillLocked]}
               onPress={onToggleLock}
               activeOpacity={0.75}
             >
-              <Text style={styles.controlPillText}>{isLocked ? '🔒 TERKUNCI' : '🔓 KUNCI DETEKSI'}</Text>
+              <Text style={styles.controlPillText}>🔓 BUKA KUNCI FRAME</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -368,6 +387,22 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
         </View>
         <Text style={styles.guideText}>Arahkan kamera ke area sampah / sumbatan air</Text>
       </Animated.View>
+
+      {/* === Floating Lock Button Ergonomis & Aman dari Potongan Layar === */}
+      {/* Muncul secara BEBARENGAN saat Bounding Box terdeteksi atau sewaktu status frame beku/terkunci */}
+      {onToggleLock && (boundingBox || isLocked) && (
+        <View style={[styles.floatingLockWrapper, { bottom: Math.max(insets.bottom, 14) + 180 }]} pointerEvents="box-none">
+          <TouchableOpacity
+            style={[styles.floatingLockPill, isLocked && styles.floatingLockPillActive]}
+            onPress={onToggleLock}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.floatingLockText}>
+              {isLocked ? '🔓 LEPAS KUNCI (FRAME BEKU)' : '🔒 KUNCI DETEKSI & FRAME INI'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -440,37 +475,54 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
 
-  // === Top Section ===
+  // === Top Section (Compact 1-Row Header) ===
   topSection: {
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    zIndex: 15, // Selalu berada di atas Bounding Box agar badge tidak tertembus
+    paddingHorizontal: Spacing.md,
+    zIndex: 15, // Selalu berada di atas Bounding Box agar badge tidak tertutup
   },
-  aiChip: {
+  topHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 6,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  headerChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  aiChipCompact: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginBottom: Spacing.sm,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   pulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: Spacing.sm,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    marginRight: 6,
   },
-  aiChipText: {
+  aiChipTextCompact: {
     color: EcoWarnColors.textOnPrimary,
     fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-  },
-  badgeWrapper: {
-    marginTop: Spacing.xs,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
 
   // === Center Reticle ===
@@ -572,5 +624,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+
+  // === Floating Lock Button (Aman dari potongan layar & ergonomik di atas footer) ===
+  floatingLockWrapper: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 40,
+  },
+  floatingLockPill: {
+    backgroundColor: '#10B981', // Emerald green yang kontras & mencolok
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+    borderRadius: 26,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    elevation: 10,
+  },
+  floatingLockPillActive: {
+    backgroundColor: '#F59E0B', // Amber/Emas berkilau penanda status frame terkunci
+    borderColor: '#FFFFFF',
+  },
+  floatingLockText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
 });

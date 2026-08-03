@@ -10,6 +10,14 @@ import { EcoWarnColors, BorderRadius } from '../../constants/theme';
  * Didesain minimalis dan ergonomis dengan indikator aktif berupa latar belakang kapsul.
  */
 export const FloatingTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
+  const activeRoute = state.routes[state.index];
+  const activeOptions = descriptors[activeRoute.key]?.options;
+
+  // Sembunyikan tab bar apabila rute saat ini memiliki konfigurasi tabBarStyle: { display: 'none' }
+  if ((activeOptions?.tabBarStyle as any)?.display === 'none') {
+    return null;
+  }
+
   const insets = useSafeAreaInsets();
   const bottomMargin = Math.max(insets.bottom, 16);
 

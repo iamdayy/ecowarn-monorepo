@@ -1,6 +1,7 @@
 import { Report, IReport, TrashVolumeStatus } from '../models/ReportSchema';
 import { broadcastCriticalAlert } from './alertService';
 import { getSocketServer } from '../config/socket';
+import { uploadPhotoToFirebaseStorage } from './storageService';
 
 const DEFAULT_MAX_DISTANCE_METERS = 25000; // 25 km default radius filter
 const EVENT_NEW_REPORT = 'NEW_REPORT';
@@ -23,6 +24,12 @@ export const createReportService = async (payload: CreateReportPayload): Promise
   try {
     const { reporterId, longitude, latitude, severity, photoUrl } = payload;
 
+    // Jika foto dikirim dalam format Base64 dan bucket Firebase Storage terisi di env, otomatis unggah ke Cloud Storage!
+    let processedPhotoUrl = photoUrl;
+    if (photoUrl && photoUrl.startsWith('data:image/')) {
+      processedPhotoUrl = await uploadPhotoToFirebaseStorage(photoUrl, 'reports');
+    }
+
     const newReport = await Report.create({
       reporterId,
       location: {
@@ -30,7 +37,7 @@ export const createReportService = async (payload: CreateReportPayload): Promise
         coordinates: [longitude, latitude],
       },
       severity,
-      photoUrl,
+      photoUrl: processedPhotoUrl,
     });
 
     // Pancarkan event real-time ke seluruh klien pemantau agar marker peta terperbarui
