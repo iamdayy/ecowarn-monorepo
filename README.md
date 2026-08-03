@@ -134,6 +134,34 @@ sequenceDiagram
 
 ---
 
+### D. Siklus Penuntasan Mitigasi & De-eskalasi Bencana (*Closing the Loop*)
+Untuk mengakhiri status tanggap darurat setelah sumbatan sampah dan ancaman banjir rob diberdayakan di lapangan, sistem memvalidasi penyelesaian insiden secara terstruktur serta meredakan kekhawatiran masyarakat:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor R as Relawan Lapangan
+    participant API as Peladen API
+    participant DB as MongoDB (2dsphere)
+    participant SK as Socket.io & FCM Engine
+    actor W as Warga Terdampak
+
+    R->>API: PATCH /api/reports/:id/resolve (Bukti Foto After-Cleaning + JWT)
+    API->>DB: Update status='RESOLVED' & Simpan Bukti Mitigasi
+    API->>DB: Evaluasi $nearSphere (500m) untuk status={ $ne: 'RESOLVED' }
+    
+    alt Sisa Titik Bahaya == 0 (Zona Bersih / Steril)
+        API->>SK: Trigger De-eskalasi (Event: ZONE_ALL_CLEAR)
+        SK->>W: Push Notification & Alert: "🟢 ZONA AMAN ECOWARN!"
+        SK->>W: Peta mengubah pin menjadi Hijau (#00C853) & Hapus Zona Merah
+    else Masih Ada Titik Bahaya di Sekitar (Sisa > 0)
+        API->>SK: Trigger Update Titik (Event: REPORT_RESOLVED)
+        SK->>W: Peta memperbarui satu pin menjadi Hijau tanpa de-eskalasi kawasan
+    end
+```
+
+---
+
 ## 🛠️ 4. Fitur & Kapabilitas Unggulan
 
 ### 1. AI Edge Object Detection (*Offline-First*)
@@ -145,9 +173,14 @@ sequenceDiagram
 - Menayangkan visualisasi peta dalam format **Satelit/Hybrid** dan **3D Bangunan**, dilengkapi kontrol **FAB (Floating Action Button)** ergonomis, lingkaran radius bahaya aktual, serta fitur **🎯 Fit Semua Titik** untuk pemfokusan kamera otomatis.
 
 ### 3. Kendali Akses Bertingkat (RBAC - Role-Based Access Control)
-- **👥 Warga:** Memiliki otoritas pemantauan peta waktu nyata, pembacaan analisis ancaman wilayah, dan penerimaan notifikasi bencana.
-- **🛡️ Relawan:** Dilengkapi kredensial khusus untuk memindai sumbatan dengan kamera AI, menyertakan bukti foto resolusi tinggi, dan menyemai data verifikasi lapangan.
+- **👥 Warga:** Memiliki otoritas pemantauan peta waktu nyata, pembacaan analisis ancaman wilayah, serta penerimaan notifikasi peringatan darurat maupun de-eskalasi keamanan zona.
+- **🛡️ Relawan:** Dilengkapi kredensial khusus untuk memindai sumbatan dengan kamera AI, mengunggah bukti foto resolusi tinggi, serta berotoritas penuh memverifikasi penuntasan insiden di lapangan (*Tandai Selesai Ditangani*).
 - **🏛️ Aparatur / Admin:** Mengelola parameter ambang batas eksternal dan validasi penanganan krisis sanitasi di instansi pemerintah.
+
+### 4. Resolusi Mitigasi & De-eskalasi Real-Time (*Closing the Loop*)
+- **Verifikasi Before & After:** Setiap titik bencana yang diselesaikan oleh tim relawan dapat disertai dengan foto pasca-pembersihan (*After-Cleaning*), menyuguhkan transparansi dan bukti mitigasi autentik kepada publik.
+- **Visual Reward Peta:** Titik insiden yang telah diatasi berganti status menjadi **✔️ ZONA STERIL** dengan penanda pin berwarna Hijau Bersinar (`#00C853`). Peta dilengkapi tombol Floating Action Button (*FAB Toggle*) ergonomis untuk menyaring atau menayangkan kembali kumpulan titik yang telah selesai dibersihkan.
+- **Sinyal De-eskalasi Otomatis:** Begitu seluruh akumulasi titik sumbatan kritis pada lingkup radius 500 meter tuntas dibersihkan, peladen secara otomatis mereda dari status gawat darurat dan menyebarkan siaran ketenteraman kawasan (*All-Clear Broadcast*) ke perangkat genggam warga di area terdampak.
 
 ---
 
