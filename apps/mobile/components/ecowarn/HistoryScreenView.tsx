@@ -15,9 +15,9 @@ interface HistoryItemProps {
 }
 
 const HistoryCardItem: React.FC<HistoryItemProps> = ({ item, onSelect, badgeStyle }) => {
-  const [lng, lat] = item.location.coordinates;
+  const [lng, lat] = item?.location?.coordinates || [undefined, undefined];
   const { address } = useCoordinateAddress(lat, lng, 'short');
-  const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleString('id-ID') : 'Baru saja';
+  const dateStr = item?.createdAt ? new Date(item.createdAt).toLocaleString('id-ID') : 'Baru saja';
 
   return (
     <TouchableOpacity
@@ -28,11 +28,11 @@ const HistoryCardItem: React.FC<HistoryItemProps> = ({ item, onSelect, badgeStyl
       <View style={styles.cardHeader}>
         <Text style={styles.reportIcon}>{badgeStyle.icon}</Text>
         <View style={styles.idContainer}>
-          <Text style={styles.reportTitle}>ID: {item._id.slice(-8).toUpperCase()}</Text>
+          <Text style={styles.reportTitle}>ID: {item._id?.slice(-8)?.toUpperCase() || 'N/A'}</Text>
           <Text style={styles.timestamp}>{dateStr}</Text>
         </View>
         <View style={[styles.severityBadge, { backgroundColor: badgeStyle.bg, borderColor: badgeStyle.border }]}>
-          <Text style={[styles.severityText, { color: badgeStyle.text }]}>{item.severity}</Text>
+          <Text style={[styles.severityText, { color: badgeStyle.text }]}>{item.severity || 'Ringan'}</Text>
         </View>
       </View>
       
@@ -40,7 +40,7 @@ const HistoryCardItem: React.FC<HistoryItemProps> = ({ item, onSelect, badgeStyl
       
       <View style={styles.cardFooter}>
         <Text style={[styles.coordinateText, { flex: 1, marginRight: 8 }]} numberOfLines={1}>
-          📍 {address} ({lat.toFixed(4)}, {lng.toFixed(4)})
+          📍 {address} ({lat?.toFixed(4) ?? '0.0000'}, {lng?.toFixed(4) ?? '0.0000'})
         </Text>
         <Text style={styles.detailHintText}>📸 Lihat Detail &gt;</Text>
       </View>

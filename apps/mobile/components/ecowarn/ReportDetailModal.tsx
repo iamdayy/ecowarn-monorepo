@@ -37,6 +37,10 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   const { user, token } = useAuth();
   const [isResolving, setIsResolving] = useState<boolean>(false);
 
+  // Aturan Mutlak React Hooks: Semua Hook wajib dieksekusi sebelum pengembalian bersyarat (early return)
+  const [longitude, latitude] = report?.location?.coordinates || [undefined, undefined];
+  const { address } = useCoordinateAddress(latitude, longitude, 'full');
+
   if (!report) return null;
 
   const dateStr = report.createdAt
@@ -121,8 +125,6 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   };
 
   const badge = getBadgeStyle(report.severity, report.status);
-  const [longitude, latitude] = report.location.coordinates;
-  const { address } = useCoordinateAddress(latitude, longitude, 'full');
 
   return (
     <Modal
@@ -138,7 +140,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
               <Text style={styles.headerTitle}>Detail Laporan Spasial</Text>
-              <Text style={styles.headerSubtitle}>ID: {report._id.toUpperCase()}</Text>
+              <Text style={styles.headerSubtitle}>ID: {report._id?.toUpperCase() || 'N/A'}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton} activeOpacity={0.7}>
               <Ionicons name="close" size={24} color={EcoWarnColors.textSecondary} />
@@ -151,7 +153,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
               <Text style={styles.severityIcon}>{badge.icon}</Text>
               <View style={styles.severityTextWrapper}>
                 <Text style={[styles.severityLabel, { color: badge.text }]}>
-                  {report.status === 'RESOLVED' ? 'STATUS RESOLVED (SELESAI)' : `STATUS ${report.severity.toUpperCase()}`}
+                  {report.status === 'RESOLVED' ? 'STATUS RESOLVED (SELESAI)' : `STATUS ${report.severity?.toUpperCase() || 'UNKNOWN'}`}
                 </Text>
                 <Text style={[styles.severitySublabel, { color: badge.text }]}>
                   {badge.title}
@@ -230,7 +232,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   <Ionicons name="navigate-outline" size={20} color={EcoWarnColors.primary} />
                   <View style={styles.metaTextWrapper}>
                     <Text style={styles.metaLabel}>Koordinat Titik Lokasi</Text>
-                    <Text style={styles.metaValue}>{`Lat: ${latitude.toFixed(6)} · Lng: ${longitude.toFixed(6)}`}</Text>
+                    <Text style={styles.metaValue}>{`Lat: ${latitude?.toFixed(6) ?? '0.000000'} · Lng: ${longitude?.toFixed(6) ?? '0.000000'}`}</Text>
                   </View>
                 </View>
 

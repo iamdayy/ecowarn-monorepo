@@ -56,11 +56,13 @@ export const initFirebase = (): void => {
       return;
     }
 
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET?.trim().replace(/^gs:\/\//, '').replace(/\/$/, '');
     firebaseApp = initializeApp({
       credential: cert(serviceAccount),
+      storageBucket: bucketName,
     });
 
-    console.log('[Firebase Admin] SDK berhasil diinisialisasi untuk push notification FCM.');
+    console.log(`[Firebase Admin] SDK berhasil diinisialisasi untuk FCM & Cloud Storage (${bucketName || 'Tanpa Bucket'}).`);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[Error Firebase Admin] Gagal menginisialisasi Firebase Admin SDK: ${errorMessage}`);

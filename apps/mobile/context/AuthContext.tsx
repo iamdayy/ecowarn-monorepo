@@ -75,7 +75,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setIsLoading(true);
       const authResponse = await loginUser(payload);
-      
+
       await AsyncStorage.setItem(STORAGE_TOKEN_KEY, authResponse.token);
       await AsyncStorage.setItem(STORAGE_USER_KEY, JSON.stringify(authResponse.user));
 

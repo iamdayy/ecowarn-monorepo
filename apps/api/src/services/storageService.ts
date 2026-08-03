@@ -1,6 +1,7 @@
 import { getApps } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import { isFirebaseInitialized } from '../config/firebase';
+import crypto from 'crypto';
 
 /**
  * Layanan integrasi Firebase Cloud Storage untuk memitigasi pembengkakan database MongoDB.
@@ -13,7 +14,7 @@ export const uploadPhotoToFirebaseStorage = async (base64String: string, folder:
       return base64String;
     }
 
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET?.trim().replace(/^gs:\/\//, '').replace(/\/$/, '');
     if (!bucketName) {
       console.log('[Storage Service] Environment variable FIREBASE_STORAGE_BUCKET belum dideklarasikan. Tetap menyimpankan data asli.');
       return base64String;
@@ -35,22 +36,39 @@ export const uploadPhotoToFirebaseStorage = async (base64String: string, folder:
     const bucket = getStorage().bucket(bucketName);
     const file = bucket.file(fileName);
 
+    // Buat token unduhan khas Firebase agar tautan dapat diakses publik via HTTPS
+    // tanpa melanggar pembatasan hak akses (Uniform Bucket-Level Access) dari Google Cloud IAM
+    const downloadToken = crypto.randomUUID();
+
     await file.save(imageBuffer, {
       metadata: {
         contentType: mimeType,
         cacheControl: 'public, max-age=31536000', // Cache 1 tahun
+        metadata: {
+          firebaseStorageDownloadTokens: downloadToken,
+        },
       },
-      public: true, // Mengatur agar foto dapat dibaca secara publik oleh klien
     });
 
-    // Mengubah penyiapan tautan menjadi URL HTTPS GCP CDN yang sah
-    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${file.name}`;
+    // Gunakan format standar tautan unduh publik Firebase Cloud Storage
+    const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(file.name)}?alt=media&token=${downloadToken}`;
     console.log(`[Storage Service] Sukses mengunggah foto laporan ke Firebase Cloud Storage: ${publicUrl}`);
-    
+
     return publicUrl;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.warn(`[Warning Storage Service] Gagal mengunggah foto ke Firebase Storage (${errorMessage}), fallback menggunakan Base64 asal.`);
+  } catch (error: any) {
+    // Mencetak objek error mentah tanpa interpolasi string agar Node/Bun mencetak seluruh isi struktur tanpa mengubahnya menjadi [object Object]
+    console.error('[Error Storage Service - Raw Detail]:', error?.response?.body || error?.response?.data || error);
+
+    let errorMessage = '';
+    try {
+      errorMessage = typeof error?.message === 'string' && error.message !== '[object Object]'
+        ? error.message
+        : JSON.stringify(error?.response?.body || error?.response?.data || error, null, 2);
+    } catch (e) {
+      errorMessage = String(error);
+    }
+
+    console.warn(`[Warning Storage Service] Gagal mengunggah foto ke Firebase Storage (${errorMessage}). Fallback menggunakan Base64 asal.`);
     return base64String;
   }
 };

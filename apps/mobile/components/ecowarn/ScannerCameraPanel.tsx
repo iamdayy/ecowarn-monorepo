@@ -9,7 +9,6 @@ import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Location from 'expo-location';
-import ViewShot, { captureRef } from 'react-native-view-shot';
 import { TrashVolumeStatus, ReportPayload, SpatialCoordinates, BoundingBox } from '../../types/ecowarn';
 import { processYoloInference } from '../../utils/yoloPostProcessor';
 import { useTrashDetectorModel } from '../../services/aiService';
@@ -74,7 +73,6 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
 }) => {
   const device = useCameraDevice('back');
   const cameraRef = useRef<Camera>(null);
-  const viewShotRef = useRef<ViewShot>(null);
   const [hasPermission, setHasPermission] = useState<boolean>(false);
   const [detectedSeverity, setDetectedSeverity] = useState<TrashVolumeStatus>('Ringan');
   const [currentRatio, setCurrentRatio] = useState<number>(0.0);
@@ -274,7 +272,6 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
           if (snapshot && snapshot.path) {
             const fileUri = snapshot.path.startsWith('file://') ? snapshot.path : `file://${snapshot.path}`;
             setFrozenFrameUri(fileUri);
-            console.log('[Camera Frame Lock] Berhasil membekukan frame secara sinkron dengan bounding box:', fileUri);
           }
         } catch (error) {
           console.warn('[Camera Frame Lock] Gagal memotret frame beku saat penguncian:', error);
@@ -292,7 +289,6 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
 
       // 1. SIMULTAN GPS RE-FETCH: Mulai mengambil koordinat satelit berakurasi tinggi seketika tombol ditekan!
       // Berlangsung di background secara paralel sewaktu pemotretan dan kompresi foto diproses agar tidak ada latensi ekstra.
-      console.log('[Scanner GPS Re-Fetch] Mengaktifkan pembaruan koordinat aktual untuk pengiriman...');
       const gpsPromise = Promise.race([
         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation }),
         new Promise<null>((_, reject) => setTimeout(() => reject(new Error('GPS Refetch Timeout')), 5000)),
@@ -319,23 +315,6 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
         }
       }
 
-      // Gunakan captureRef dari react-native-view-shot untuk merekam Bounding Box AI langsung menyatu ke dalam foto!
-      if (viewShotRef.current && (targetUri || detectedBox)) {
-        try {
-          const bakedUri = await captureRef(viewShotRef, {
-            format: 'jpg',
-            quality: 0.75,
-            result: 'tmpfile',
-          });
-          if (bakedUri) {
-            targetUri = bakedUri.startsWith('file://') ? bakedUri : `file://${bakedUri}`;
-            console.log('[Camera Bounding Box Capture] Berhasil menyematkan Bounding Box AI secara nyata pada foto:', targetUri);
-          }
-        } catch (captureError) {
-          console.warn('[Warning ViewShot] Gagal merekam ViewShot dengan Bounding Box, fallback ke foto asli:', captureError);
-        }
-      }
-
       if (targetUri) {
         try {
           // Kompresi & resize gambar menggunakan expo-image-manipulator
@@ -346,7 +325,6 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
           );
           if (manipulated.base64) {
             photoUrl = `data:image/jpeg;base64,${manipulated.base64}`;
-            console.log(`[Camera Snapshot] Sukses mempersiapkan foto (Ukuran Base64: ~${Math.round(manipulated.base64.length / 1024)} KB)`);
           } else {
             throw new Error('Manipulator tidak mengembalikan string Base64');
           }
@@ -415,7 +393,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   // === Tampilan Utama Scanner ===
   return (
     <View style={styles.container}>
-      <ViewShot ref={viewShotRef} style={styles.viewShotContainer} options={{ format: 'jpg', quality: 0.85 }}>
+      <View style={styles.cameraWrapper}>
         <MemoizedCameraView
           cameraRef={cameraRef}
           device={device}
@@ -446,7 +424,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
           isLocked={isLocked}
           onToggleLock={handleToggleLock}
         />
-      </ViewShot>
+      </View>
       <ScannerActionFooter
         severity={detectedSeverity}
         isReporting={isReporting}
@@ -463,8 +441,9 @@ const styles = StyleSheet.create({
     position: 'relative',
     backgroundColor: '#000000',
   },
-  viewShotContainer: {
+  cameraWrapper: {
     flex: 1,
     position: 'relative',
   },
 });
+

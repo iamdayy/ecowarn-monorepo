@@ -98,9 +98,7 @@ export default function RelawanScannerScreen() {
         Alert.alert('Otorisasi Gagal', 'Sesi login Anda tidak ditemukan. Silakan re-login.');
         return;
       }
-      console.log('[Mengirim Payload Relawan]', JSON.stringify(payload));
       const serverResponse = await sendReportToServer(payload, token);
-      console.log('[Respon Server Sukses - Terotorisasi RBAC]', serverResponse);
       Alert.alert(
         'Laporan Berhasil Diluncurkan! 🛡️',
         `Data klasifikasi AI (${payload.severity}) pada koordinat Anda telah dicatat oleh peladen terautentikasi ID Relawan Anda.`
