@@ -8,6 +8,7 @@ const EVENT_ZONE_ALL_CLEAR = 'ZONE_ALL_CLEAR';
 
 export interface CriticalZoneBroadcastPayload {
   alertId: string;
+  reporterId: string;
   timestamp: Date;
   centerCoordinates: [number, number];
   impactedRadiusMeters: number;
@@ -38,11 +39,12 @@ export const broadcastCriticalAlert = async (criticalReport: IReport): Promise<v
     if (impactedReports.length === 1) {
       const broadcastPayload: CriticalZoneBroadcastPayload = {
         alertId: (criticalReport._id as unknown as string).toString(),
+        reporterId: (criticalReport.reporterId as unknown as string).toString(),
         timestamp: new Date(),
         centerCoordinates: [longitude, latitude],
         impactedRadiusMeters: SPATIAL_RADIUS_METERS,
         totalNearbyReports: impactedReports.length,
-        message: `POTENSI BENCANA BANJIR ROB / SUMBATAN MUNNA! Terdeteksi ${impactedReports.length} titik sumbatan berbahaya dalam lingkup 500 meter!`,
+        message: `POTENSI BENCANA BANJIR ROB / SUMBATAN! Terdeteksi ${impactedReports.length} titik sumbatan berbahaya dalam lingkup 500 meter!`,
       };
 
       const io = getSocketServer();
@@ -68,6 +70,7 @@ export const broadcastCriticalAlert = async (criticalReport: IReport): Promise<v
 
     const broadcastPayload: CriticalZoneBroadcastPayload = {
       alertId: (criticalReport._id as unknown as string).toString(),
+      reporterId: (criticalReport.reporterId as unknown as string).toString(),
       timestamp: new Date(),
       centerCoordinates: [longitude, latitude],
       impactedRadiusMeters: SPATIAL_RADIUS_METERS,

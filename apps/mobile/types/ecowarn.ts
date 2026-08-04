@@ -1,5 +1,6 @@
 export type ReportStatus = 'ACTIVE' | 'IN_PROGRESS' | 'RESOLVED';
 export type TrashVolumeStatus = 'Ringan' | 'Sedang' | 'Kritis';
+export type AreaType = 'Selokan' | 'Sungai Kecil' | 'Sungai Besar';
 
 export interface BoundingBox {
   x: number;
@@ -26,5 +27,6 @@ export interface ReportPayload {
   latitude: number;
   longitude: number;
   severity: TrashVolumeStatus;
+  areaType?: AreaType;
   photoUrl?: string;
 }

@@ -24,7 +24,7 @@ export interface CriticalZoneAlertPayload {
   message: string;
 }
 
-let socketInstance: Socket | null = null;
+export let socketInstance: Socket | null = null;
 
 /**
  * Mendaftarkan koneksi Real-Time Engine via Socket.io dan memantau siaran darurat

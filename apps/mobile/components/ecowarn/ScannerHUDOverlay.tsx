@@ -267,8 +267,8 @@ const ScannerHUDOverlayInner: React.FC<ScannerHUDOverlayProps> = ({
         <View style={[styles.boxLabel, { backgroundColor: boxColor }]}>
           <Text style={styles.boxLabelText}>
             {isLocked
-              ? `🔒 TERKUNCI · ${severity.toUpperCase()} · ${(ratio * 100).toFixed(0)}% AREA`
-              : `🗑️ ${severity.toUpperCase()} · ${(ratio * 100).toFixed(0)}% AREA`}
+              ? `TERKUNCI · ${severity.toUpperCase()} · ${(ratio * 100).toFixed(0)}% AREA`
+              : `${severity.toUpperCase()} · ${(ratio * 100).toFixed(0)}% AREA`}
           </Text>
         </View>
       </Animated.View>

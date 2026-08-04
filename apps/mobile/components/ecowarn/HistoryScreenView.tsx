@@ -35,14 +35,14 @@ const HistoryCardItem: React.FC<HistoryItemProps> = ({ item, onSelect, badgeStyl
           <Text style={[styles.severityText, { color: badgeStyle.text }]}>{item.severity || 'Ringan'}</Text>
         </View>
       </View>
-      
+
       <View style={styles.divider} />
-      
+
       <View style={styles.cardFooter}>
         <Text style={[styles.coordinateText, { flex: 1, marginRight: 8 }]} numberOfLines={1}>
           📍 {address} ({lat?.toFixed(4) ?? '0.0000'}, {lng?.toFixed(4) ?? '0.0000'})
         </Text>
-        <Text style={styles.detailHintText}>📸 Lihat Detail &gt;</Text>
+        <Text style={styles.detailHintText}>Lihat Detail &gt;</Text>
       </View>
     </TouchableOpacity>
   );
@@ -108,7 +108,7 @@ export const HistoryScreenView: React.FC = () => {
   return (
     <View style={styles.container}>
       <ScreenHeaderBanner
-        title="Riwayat Kontribusi AI 🛡️"
+        title="Riwayat Kontribusi AI"
         subtitle="Daftar seluruh inspeksi dan pelaporan ancaman sampah yang telah Anda validasi"
         accentColor={EcoWarnColors.primary}
       />

@@ -2,6 +2,7 @@ import { Schema, model, Document } from 'mongoose';
 
 export type ReportStatus = 'ACTIVE' | 'IN_PROGRESS' | 'RESOLVED';
 export type TrashVolumeStatus = 'Ringan' | 'Sedang' | 'Kritis';
+export type AreaType = 'Selokan' | 'Sungai Kecil' | 'Sungai Besar';
 
 export interface IReport extends Document {
   reporterId: Schema.Types.ObjectId;
@@ -10,6 +11,7 @@ export interface IReport extends Document {
     coordinates: [number, number]; // [longitude, latitude]
   };
   severity: TrashVolumeStatus;
+  areaType?: AreaType;
   status: ReportStatus;
   photoUrl?: string;
   resolvedPhotoUrl?: string;
@@ -47,6 +49,12 @@ const reportSchema = new Schema<IReport>(
       type: String,
       enum: ['Ringan', 'Sedang', 'Kritis'],
       required: [true, 'Status volume sampah (severity) wajib diisi'],
+    },
+    areaType: {
+      type: String,
+      enum: ['Selokan', 'Sungai Kecil', 'Sungai Besar'],
+      required: false,
+      index: true,
     },
     status: {
       type: String,

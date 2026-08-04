@@ -45,13 +45,13 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
 
   const dateStr = report.createdAt
     ? new Date(report.createdAt).toLocaleString('id-ID', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
     : 'Waktu tidak terekam';
 
   const handleResolveIncident = async () => {
@@ -139,7 +139,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
           {/* === Header Bar === */}
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
-              <Text style={styles.headerTitle}>Detail Laporan Spasial</Text>
+              <Text style={styles.headerTitle}>Detail Laporan</Text>
               <Text style={styles.headerSubtitle}>ID: {report._id?.toUpperCase() || 'N/A'}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton} activeOpacity={0.7}>
@@ -160,6 +160,25 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 </Text>
               </View>
             </View>
+
+            {/* === Spesifikasi Jenis Area === */}
+            {report.areaType && (
+              <View style={[styles.severityBanner, { backgroundColor: EcoWarnColors.surface, borderColor: EcoWarnColors.border, marginBottom: Spacing.md }]}>
+                <Text style={styles.severityIcon}>
+                  {report.areaType === 'Selokan' ? '💧' : report.areaType === 'Sungai Besar' ? '🌉' : '🌊'}
+                </Text>
+                <View style={styles.severityTextWrapper}>
+                  <Text style={[styles.severityLabel, { color: EcoWarnColors.textPrimary, fontSize: 14 }]}>
+                    JENIS AREA: {report.areaType.toUpperCase()}
+                  </Text>
+                  <Text style={[styles.severitySublabel, { color: EcoWarnColors.textSecondary }]}>
+                    {report.areaType === 'Selokan'
+                      ? 'Saluran drainase sempit berisiko kritis dan meluap cepat saat hujan/rob.'
+                      : 'Aliran sungai berkapasitas besar dalam pemantauan mitigasi.'}
+                  </Text>
+                </View>
+              </View>
+            )}
 
             {/* === Bukti Foto Lapangan === */}
             <View style={styles.sectionContainer}>
@@ -206,7 +225,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
             {/* === Telemetri & Lokasi Spasial === */}
             <View style={styles.sectionContainer}>
               <Text style={styles.sectionTitle}>📍 Data Geospasial &amp; Waktu</Text>
-              
+
               <View style={styles.metaCard}>
                 <View style={styles.metaRow}>
                   <Ionicons name="time-outline" size={20} color={EcoWarnColors.primary} />
@@ -261,7 +280,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 {isResolving ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.resolveButtonText}>✨ Tandai Selesai Ditangani</Text>
+                  <Text style={styles.resolveButtonText}>Tandai Selesai Ditangani</Text>
                 )}
               </TouchableOpacity>
             )}

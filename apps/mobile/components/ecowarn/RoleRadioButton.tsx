@@ -9,16 +9,14 @@ interface RoleRadioButtonProps {
 }
 
 export const RoleRadioButton: React.FC<RoleRadioButtonProps> = ({ selectedRole, onSelectRole }) => {
-  const roles: { label: UserRole; description: string; icon: string }[] = [
+  const roles: { label: UserRole; description: string; }[] = [
     {
       label: 'Warga',
       description: 'Pemantauan peta spasial & notifikasi peringatan dini',
-      icon: '🗺️',
     },
     {
       label: 'Relawan',
       description: 'Akses Kamera AI & riwayat pelaporan lapangan',
-      icon: '🛡️',
     },
   ];
 
@@ -36,7 +34,6 @@ export const RoleRadioButton: React.FC<RoleRadioButtonProps> = ({ selectedRole, 
               activeOpacity={0.8}
             >
               <View style={styles.cardHeader}>
-                <Text style={styles.roleIcon}>{item.icon}</Text>
                 <Text style={[styles.roleTitle, isSelected && styles.roleTitleSelected]}>
                   {item.label}
                 </Text>

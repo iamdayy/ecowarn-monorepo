@@ -9,12 +9,13 @@ import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Location from 'expo-location';
-import { TrashVolumeStatus, ReportPayload, SpatialCoordinates, BoundingBox } from '../../types/ecowarn';
+import { TrashVolumeStatus, ReportPayload, SpatialCoordinates, BoundingBox, AreaType } from '../../types/ecowarn';
 import { processYoloInference, ObjectTrackerState } from '../../utils/yoloPostProcessor';
 import { useTrashDetectorModel } from '../../services/aiService';
 import { ScannerHUDOverlay } from './ScannerHUDOverlay';
 import { ScannerActionFooter } from './ScannerActionFooter';
 import { UnauthorizedCameraView } from './UnauthorizedCameraView';
+import { ReportReviewModal } from './ReportReviewModal';
 
 // Inference FPS disetel ke 5 (200ms) agar seimbang antara laju deteksi dan kehalusan preview 60 FPS
 const TARGET_INFERENCE_FPS = 5;
@@ -99,9 +100,20 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
     isLockedRef.current = isLocked;
   }, [isLocked]);
 
-  // Lifecycle & Navigation Focus Tracking (Mencegah kamera berjalan saat layar mati atau pindah halaman/tab)
+  // Lifecycle & Navigation Focus Tracking
   const isFocused = useIsFocused();
   const [isForeground, setIsForeground] = useState<boolean>(AppState.currentState === 'active');
+
+  // State dan ref untuk pemadaman kamera sementara (Freeze) & penetapan Jenis Area di modal konfirmasi
+  const [isReviewModalVisible, setIsReviewModalVisible] = useState<boolean>(false);
+  const [reviewPhotoUri, setReviewPhotoUri] = useState<string | null>(null);
+  const [reviewPhotoBase64, setReviewPhotoBase64] = useState<string | undefined>(undefined);
+  const [reviewGpsCoords, setReviewGpsCoords] = useState<{ latitude: number; longitude: number }>({
+    latitude: currentLocation.latitude,
+    longitude: currentLocation.longitude,
+  });
+  const [isSubmittingReport, setIsSubmittingReport] = useState<boolean>(false);
+  const forceRescanRef = useRef<boolean>(false);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
@@ -112,7 +124,8 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
     };
   }, []);
 
-  const isCameraActive = isFocused && isForeground && hasPermission;
+  // Saat modal konfirmasi aktif, siaran kamera dimatikan seketika (isActive = false) untuk menghemat GPU & baterai
+  const isCameraActive = isFocused && isForeground && hasPermission && !isReviewModalVisible;
 
   // State kontrol baru (Torch, Zoom, Silent Haptic Mode)
   const [isTorchOn, setIsTorchOn] = useState<boolean>(false);
@@ -219,35 +232,31 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
   const frameProcessor = useFrameProcessor(
     (frame: Frame) => {
       'worklet';
-      runAtTargetFps(TARGET_INFERENCE_FPS, () => {
+      const executeInference = (isDeepRescan: boolean) => {
         let bufferLength = 0;
         try {
           if (boxedModel == null || !inputConfig.isValid || !outputConfig.isValid) return;
-
-          // Unbox model secara resmi di Worklet thread
           const tflite = boxedModel.unbox();
 
-          // 1. GPU Resize di Camera Worklet Thread (< 1 milidetik via EGL Shader)
           const resized = resize(frame, {
             scale: { width: inputConfig.width, height: inputConfig.height },
             pixelFormat: 'rgb',
             dataType: inputConfig.isFloat ? 'float32' : 'uint8',
           });
 
-          // 2. POLA RESMI MARC ROUSAVY: Ambil potongan buffer dari offset hingga length
-          // Mencegah korup memori atau ketidaksesuaian ukuran padding pada TFLite runSync
           const inputBuffer = resized.buffer.slice(
             resized.byteOffset,
             resized.byteOffset + resized.byteLength
           );
           bufferLength = inputBuffer.byteLength;
 
-          // 3. Eksekusi TFLite sinkronal resmi sesuai standar Marc Rousavy & NitroModules
           const outputs = tflite.runSync([inputBuffer as ArrayBuffer]);
           if (outputs && outputs.length > 0 && outputs[0] != null) {
             const outputMatrix = new Float32Array(outputs[0]);
 
-            // 4. Eksekusi Post-Processing AI secara modular & bersih (Clean Code - SRP)
+            // Pada tahap Deep Precision Rescan saat pemotretan, lewati bias memori tracker
+            // agar model memurnikan prediksi kotak dan rasio langsung dari citra tajam frame jepretan!
+            const activeTracker = isDeepRescan ? undefined : trackerRef.current;
             const detection = processYoloInference(
               outputMatrix,
               inputConfig,
@@ -255,7 +264,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
               frame.width,
               frame.height,
               CONFIDENCE_THRESHOLD,
-              trackerRef.current
+              activeTracker
             );
 
             updateDetectionResult(detection.ratio, detection.severity, detection.boundingBox);
@@ -264,9 +273,18 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
           const errMsg = error instanceof Error ? error.message : String(error);
           logWorkletError(`Gagal mengeksekusi TFLite: ${errMsg}`, bufferLength, inputConfig.expectedBytes);
         }
-      });
+      };
+
+      if (forceRescanRef.current) {
+        forceRescanRef.current = false;
+        executeInference(true);
+      } else {
+        runAtTargetFps(TARGET_INFERENCE_FPS, () => {
+          executeInference(false);
+        });
+      }
     },
-    [boxedModel, inputConfig, outputConfig, resize, updateDetectionResult, logWorkletError, trackerRef]
+    [boxedModel, inputConfig, outputConfig, resize, updateDetectionResult, logWorkletError, trackerRef, forceRescanRef]
   );
 
   const handleToggleLock = useCallback(async () => {
@@ -296,21 +314,26 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
     }
   }, [isLocked, isTorchOn]);
 
+  // Alur baru: Jepret -> Deep Rescan -> Freeze Kamera -> Tinjau & Pilih Area
   const handleSendReport = useCallback(async () => {
     try {
       setIsReporting(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // 1. SIMULTAN GPS RE-FETCH: Mulai mengambil koordinat satelit berakurasi tinggi seketika tombol ditekan!
-      // Berlangsung di background secara paralel sewaktu pemotretan dan kompresi foto diproses agar tidak ada latensi ekstra.
+      // 1. Picu Deep Precision Rescan di Worklet Thread sesaat sebelum jepretan
+      forceRescanRef.current = true;
+
+      // 2. Simultan GPS Re-Fetch secara paralel di background
       const gpsPromise = Promise.race([
         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation }),
-        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('GPS Refetch Timeout')), 5000)),
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('GPS Refetch Timeout')), 4000)),
       ]).catch(() => null);
 
-      let photoUrl: string | undefined = undefined;
-      let targetUri: string | null = frozenFrameUri;
+      // Beri jeda singkat agar Worklet mengeksekusi Deep Precision Rescan pada frame aktif
+      await new Promise((resolve) => setTimeout(resolve, 120));
 
-      // Jika pengguna menekan kirim tanpa mengunci bounding box terlebih dahulu, potret dan bekukan frame sekarang
+      // 3. Potret foto HD bukti lapangan
+      let targetUri: string | null = frozenFrameUri;
       if (!targetUri && cameraRef.current) {
         try {
           const photo = await cameraRef.current.takePhoto({
@@ -320,29 +343,25 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
             targetUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
             setFrozenFrameUri(targetUri);
             setIsLocked(true);
-            // Beri jeda 150ms agar antarmuka React Native sempat menampilkan image beku & overlay bounding box
-            await new Promise((resolve) => setTimeout(resolve, 150));
           }
         } catch (photoErr) {
           console.warn('[Camera Snapshot] Gagal memotret bukti lapangan:', photoErr);
         }
       }
 
+      let photoUrl: string | undefined = undefined;
       if (targetUri) {
         try {
-          // Kompresi & resize gambar menggunakan expo-image-manipulator
           const manipulated = await ImageManipulator.manipulateAsync(
             targetUri,
-            [{ resize: { width: 800 } }], // Resize lebar 800px (hemat bandwidth dan tidak terkena 413 error)
-            { compress: 0.65, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+            [{ resize: { width: 900 } }],
+            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
           );
           if (manipulated.base64) {
             photoUrl = `data:image/jpeg;base64,${manipulated.base64}`;
-          } else {
-            throw new Error('Manipulator tidak mengembalikan string Base64');
           }
         } catch (manipError) {
-          console.warn('[Camera Snapshot] Manipulator gagal, fallback ke pembacaan sistem berkas murni:', manipError);
+          console.warn('[Camera Snapshot] Manipulator gagal, fallback ke pembacaan sistem berkas:', manipError);
           const base64Image = await FileSystem.readAsStringAsync(targetUri, {
             encoding: FileSystem.EncodingType.Base64,
           });
@@ -350,7 +369,7 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
         }
       }
 
-      // 2. Tuntaskan penerimaan koordinat aktual yang sudah difetching sejak awal tombol ditekan
+      // 4. Tuntaskan penguncian koordinat aktual
       let finalLat = currentLocation.latitude;
       let finalLng = currentLocation.longitude;
       try {
@@ -358,39 +377,67 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
         if (freshPos && typeof freshPos !== 'number') {
           finalLat = freshPos.coords.latitude;
           finalLng = freshPos.coords.longitude;
-          console.log(`[Scanner GPS Re-Fetch] Sukses mengunci koordinat aktual saat pengiriman: ${finalLat}, ${finalLng} (Akurasi: ±${Math.round(freshPos.coords.accuracy || 0)}m)`);
-        } else {
-          console.log('[Scanner GPS Re-Fetch] Waktu habis/gagal, menggunakan koordinat pantauan aktif saat ini.');
+          console.log(`[Scanner GPS Re-Fetch] Sukses mengunci koordinat aktual: ${finalLat}, ${finalLng}`);
         }
       } catch (err) {
-        console.warn('[Warning Scanner GPS Re-Fetch] Gagal merebut posisi terbaru:', err);
+        console.warn('[Warning Scanner GPS] Gagal merebut posisi terbaru:', err);
       }
 
-      // PAYLOAD: Kirim koordinat akurat terbaru, status keparahan, dan bukti foto ke peladen
+      // 5. Padamkan siaran kamera waktu nyata & buka modal tinjauan / penentuan area
+      setReviewPhotoUri(targetUri);
+      setReviewPhotoBase64(photoUrl);
+      setReviewGpsCoords({ latitude: finalLat, longitude: finalLng });
+      setIsReviewModalVisible(true);
+    } catch (error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[Error Capture] Gagal memproses jepretan & scan ulang: ${errorMessage}`);
+      Alert.alert('Galat', 'Gagal memproses pemotretan bukti lapangan.');
+    } finally {
+      setIsReporting(false);
+    }
+  }, [currentLocation, isTorchOn, frozenFrameUri]);
+
+  const handleConfirmReport = useCallback(async (selectedArea: AreaType) => {
+    try {
+      setIsSubmittingReport(true);
       const payload: ReportPayload = {
-        latitude: finalLat,
-        longitude: finalLng,
+        latitude: reviewGpsCoords.latitude,
+        longitude: reviewGpsCoords.longitude,
         severity: detectedSeverity,
-        photoUrl,
+        areaType: selectedArea,
+        photoUrl: reviewPhotoBase64,
       };
 
       await onSendReport(payload);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Sukses', `Laporan status ${detectedSeverity} berhasil dikirim ke peladen.`);
-      if (isLocked) {
-        setIsLocked(false);
-        setFrozenFrameUri(null); // Buka kembali frame kamera setelah berhasil kirim laporan
-        if (trackerRef.current) trackerRef.current.isValid = false;
-      }
+
+      // Tuntaskan modal & hidupkan kembali siaran waktu nyata kamera
+      setIsReviewModalVisible(false);
+      setReviewPhotoUri(null);
+      setReviewPhotoBase64(undefined);
+      setIsLocked(false);
+      setFrozenFrameUri(null);
+      if (trackerRef.current) trackerRef.current.isValid = false;
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[Error Send Report] Gagal mengirim payload laporan: ${errorMessage}`);
-      Alert.alert('Galat', 'Gagal mengirim laporan peringatan dini ke peladen.');
+      console.error(`[Error Confirm Report] Gagal mengirim laporan dari modal: ${errorMessage}`);
+      Alert.alert('Galat', 'Gagal memproses kirim laporan peringatan dini ke peladen.');
     } finally {
-      setIsReporting(false);
+      setIsSubmittingReport(false);
     }
-  }, [currentLocation, detectedSeverity, onSendReport, isTorchOn, isLocked, frozenFrameUri, detectedBox]);
+  }, [reviewGpsCoords, detectedSeverity, reviewPhotoBase64, onSendReport]);
+
+  const handleRetakePhoto = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsReviewModalVisible(false);
+    setReviewPhotoUri(null);
+    setReviewPhotoBase64(undefined);
+    setIsLocked(false);
+    setFrozenFrameUri(null);
+    if (trackerRef.current) trackerRef.current.isValid = false;
+  }, []);
 
   // === Tampilan Belum Diizinkan ===
   if (!hasPermission || !device) {
@@ -444,6 +491,15 @@ export const ScannerCameraPanel: React.FC<ScannerCameraPanelProps> = ({
         isReporting={isReporting}
         onSendReport={handleSendReport}
         currentLocation={currentLocation}
+      />
+      <ReportReviewModal
+        visible={isReviewModalVisible}
+        imageUri={reviewPhotoUri}
+        detectedRatio={currentRatio}
+        initialSeverity={detectedSeverity}
+        isSubmitting={isSubmittingReport}
+        onConfirm={handleConfirmReport}
+        onRetake={handleRetakePhoto}
       />
     </View>
   );

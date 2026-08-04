@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import { InteractiveMap, MapReportItem } from './InteractiveMap';
 import { ScreenHeaderBanner } from './ScreenHeaderBanner';
+import { CustomAlertModal, CustomAlertType } from './CustomAlertModal';
 import { EcoWarnColors } from '../../constants/theme';
 import { SpatialCoordinates } from '../../types/ecowarn';
 import { fetchNearbyReports, ServerReportResponse } from '../../services/apiService';
@@ -19,6 +20,19 @@ export const MapScreenView: React.FC = () => {
     longitude: 106.816666,
   });
   const [activeReports, setActiveReports] = useState<MapReportItem[]>([]);
+
+  // State Custom Alert untuk Socket & API Response
+  const [alertVisible, setAlertVisible] = useState<boolean>(false);
+  const [alertConfig, setAlertConfig] = useState<{ type: CustomAlertType; title: string; message: string }>({
+    type: 'info',
+    title: '',
+    message: '',
+  });
+
+  const showAlert = (type: CustomAlertType, title: string, message: string) => {
+    setAlertConfig({ type, title, message });
+    setAlertVisible(true);
+  };
 
   const formatServerReportToMapItem = (report: ServerReportResponse): MapReportItem => ({
     id: report._id,
@@ -56,7 +70,7 @@ export const MapScreenView: React.FC = () => {
           lng = location.coords.longitude;
           setUserLocation({ latitude: lat, longitude: lng });
         } else {
-          Alert.alert('Izin Ditolak', 'Menggunakan koordinat default (Jakarta) untuk memuat peta.');
+          showAlert('warning', 'Izin Ditolak', 'Menggunakan koordinat default (Jakarta) untuk memuat peta.');
         }
 
         await loadReportsFromServer(lat, lng);
@@ -73,9 +87,10 @@ export const MapScreenView: React.FC = () => {
   // Integrasi Real-Time Engine (Socket.io)
   useEffect(() => {
     const handleCriticalAlert = (payload: CriticalZoneAlertPayload) => {
-      Alert.alert(
-        '🚨 PERINGATAN DINI BAHAYA KRITIS!',
-        `${payload.message}\nTerdeteksi krisis volume sampah pada zona ${payload.impactedRadiusMeters / 1000}km dari titik fokus.\nSegera tingkatkan kewaspadaan!`
+      showAlert(
+        'critical',
+        'PERINGATAN DINI BAHAYA KRITIS!',
+        `${payload.message}\n\nTerdeteksi krisis volume sampah pada zona ${payload.impactedRadiusMeters / 1000}km dari titik fokus. Segera tingkatkan kewaspadaan!`
       );
     };
 
@@ -95,9 +110,10 @@ export const MapScreenView: React.FC = () => {
     };
 
     const handleZoneAllClear = (payload: ZoneAllClearPayload) => {
-      Alert.alert(
-        '🟢 ZONA AMAN TERVERIFIKASI!',
-        `${payload.message}\nAncaman banjir rob dan sumbatan sampah pada lingkup ${payload.clearedRadiusMeters} meter tuntas diatasi oleh relawan di lapangan.`
+      showAlert(
+        'success',
+        'ZONA AMAN TERVERIFIKASI!',
+        `${payload.message}\n\nAncaman banjir rob dan sumbatan sampah pada lingkup ${payload.clearedRadiusMeters} meter tuntas diatasi oleh relawan di lapangan.`
       );
     };
 
@@ -127,6 +143,13 @@ export const MapScreenView: React.FC = () => {
         userLocation={userLocation}
         reports={activeReports}
         onReportUpdated={handleReportUpdated}
+      />
+      <CustomAlertModal
+        visible={alertVisible}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onDismiss={() => setAlertVisible(false)}
       />
     </View>
   );

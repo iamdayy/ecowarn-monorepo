@@ -3,8 +3,15 @@ import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, To
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import { fetchNearbyReports, ServerReportResponse } from '../../services/apiService';
+import {
+  connectRealtimeEngine,
+  disconnectRealtimeEngine,
+  CriticalZoneAlertPayload,
+  ZoneAllClearPayload,
+} from '../../services/socketService';
 import { ScreenHeaderBanner } from './ScreenHeaderBanner';
 import { ReportDetailModal } from './ReportDetailModal';
+import { CustomAlertModal, CustomAlertType } from './CustomAlertModal';
 import { EcoWarnColors, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 import { useCoordinateAddress } from '../../services/geocodingService';
 
@@ -51,7 +58,7 @@ const AlertCardItem: React.FC<AlertCardProps> = ({ item, onSelect }) => {
       <Text style={styles.description}>
         Terdeteksi ancaman sumbatan sampah berstatus <Text style={styles.bold}>{item.severity}</Text> di kawasan <Text style={styles.bold}>{address}</Text> ({lat.toFixed(4)}, {lng.toFixed(4)}).
       </Text>
-      <Text style={styles.detailHintText}>📸 Ketuk untuk lihat bukti foto &amp; detail &gt;</Text>
+      <Text style={styles.detailHintText}>Ketuk untuk lihat bukti foto &amp; detail &gt;</Text>
     </TouchableOpacity>
   );
 };
@@ -64,6 +71,19 @@ export const AlertsScreenView: React.FC = () => {
   const [selectedReport, setSelectedReport] = useState<ServerReportResponse | null>(null);
   const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
 
+  // State Custom Alert untuk Socket.io / API Response
+  const [alertVisible, setAlertVisible] = useState<boolean>(false);
+  const [alertConfig, setAlertConfig] = useState<{ type: CustomAlertType; title: string; message: string }>({
+    type: 'info',
+    title: '',
+    message: '',
+  });
+
+  const showCustomAlert = useCallback((type: CustomAlertType, title: string, message: string) => {
+    setAlertConfig({ type, title, message });
+    setAlertVisible(true);
+  }, []);
+
   const loadCriticalAlerts = useCallback(async () => {
     try {
       const location = await Location.getCurrentPositionAsync({}).catch(() => null);
@@ -72,7 +92,7 @@ export const AlertsScreenView: React.FC = () => {
 
       // Kueri ketat dalam lingkup 500 meter sesuai dengan aturan potensi bencana
       const reports500m = await fetchNearbyReports(lat, lng, 500);
-      
+
       // Menyaring laporan yang diklasifikasikan sebagai sumbatan/ancaman
       const sumbatanReports = reports500m.filter(
         (item) => item.severity === 'Kritis' || item.severity === 'Sedang' || item.severity === 'Ringan'
@@ -86,15 +106,52 @@ export const AlertsScreenView: React.FC = () => {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[Error Alerts View - loadCriticalAlerts] Gagal memuat daftar waspada: ${errorMessage}`);
+      showCustomAlert('error', 'Galat Koneksi API', 'Gagal memperbarui data sumbatan darurat dari peladen. Periksa koneksi internet Anda.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [showCustomAlert]);
 
   useEffect(() => {
     loadCriticalAlerts();
   }, [loadCriticalAlerts]);
+
+  // Pemantauan Siaran Darurat & Respon Real-Time Engine via Socket.io
+  useEffect(() => {
+    const handleCriticalAlert = (payload: CriticalZoneAlertPayload) => {
+      showCustomAlert(
+        'critical',
+        'ZONA KRITIS BAHAYA BANJIR!',
+        `${payload.message}\n\nTerdeteksi ancaman kritis dalam radius ${payload.impactedRadiusMeters}m dari area sekitar Anda.`
+      );
+      loadCriticalAlerts();
+    };
+
+    const handleNewReport = () => {
+      // Refresh otomatis daftar peringatan spasial 500m saat laporan baru masuk
+      loadCriticalAlerts();
+    };
+
+    const handleReportResolved = () => {
+      loadCriticalAlerts();
+    };
+
+    const handleZoneAllClear = (payload: ZoneAllClearPayload) => {
+      showCustomAlert(
+        'success',
+        'ZONA DALAM STATUS STERIL',
+        `${payload.message}\n\nLingkup ${payload.clearedRadiusMeters} meter tuntas dinormalisasi dan diatasi oleh relawan di lapangan.`
+      );
+      loadCriticalAlerts();
+    };
+
+    connectRealtimeEngine(handleCriticalAlert, handleNewReport, handleReportResolved, handleZoneAllClear);
+
+    return () => {
+      disconnectRealtimeEngine();
+    };
+  }, [showCustomAlert, loadCriticalAlerts]);
 
   const onRefresh = () => {
     setIsRefreshing(true);
@@ -171,6 +228,14 @@ export const AlertsScreenView: React.FC = () => {
           setIsModalVisible(false);
           setSelectedReport(null);
         }}
+      />
+
+      <CustomAlertModal
+        visible={alertVisible}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onDismiss={() => setAlertVisible(false)}
       />
     </View>
   );

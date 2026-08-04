@@ -1,8 +1,12 @@
-import { TrashVolumeStatus } from '../types/ecowarn';
+import { TrashVolumeStatus, AreaType } from '../types/ecowarn';
 
 // Konstanta global aturan Bounding Box Ratio
-export const RATIO_THRESHOLD_CRITICAL = 0.35; // >= 35% luas layar tercemar/kritis
-export const RATIO_THRESHOLD_MEDIUM = 0.15;   // >= 15% luas layar tercemar/sedang
+export const RATIO_THRESHOLD_CRITICAL = 0.35; // >= 35% luas layar tercemar/kritis (Sungai)
+export const RATIO_THRESHOLD_MEDIUM = 0.15;   // >= 15% luas layar tercemar/sedang (Sungai)
+
+// Threshold sensitif untuk area Selokan / drainase sempit yang mudah meluap/tersumbat total
+export const RATIO_THRESHOLD_SELOKAN_CRITICAL = 0.25; // >= 25% luas layar langsung Kritis di Selokan
+export const RATIO_THRESHOLD_SELOKAN_MEDIUM = 0.10;   // >= 10% luas layar Sedang di Selokan
 
 /**
  * Menghitung persentase luas bounding box sampah terhadap luas dimensi frame kamera (Client-Side)
@@ -31,13 +35,16 @@ export const calculateBoundingBoxRatio = (
 };
 
 /**
- * Menentukan klasifikasi keparahan sampah berdasarkan nilai rasio luas area
+ * Menentukan klasifikasi keparahan sampah berdasarkan nilai rasio luas area dan spesifikasi lokasi fisik
  */
-export const determineSeverityStatus = (ratio: number): TrashVolumeStatus => {
+export const determineSeverityStatus = (ratio: number, areaType?: AreaType): TrashVolumeStatus => {
   'worklet';
-  if (ratio >= RATIO_THRESHOLD_CRITICAL) {
+  const critThreshold = areaType === 'Selokan' ? 0.25 : RATIO_THRESHOLD_CRITICAL;
+  const medThreshold = areaType === 'Selokan' ? 0.10 : RATIO_THRESHOLD_MEDIUM;
+
+  if (ratio >= critThreshold) {
     return 'Kritis';
-  } else if (ratio >= RATIO_THRESHOLD_MEDIUM) {
+  } else if (ratio >= medThreshold) {
     return 'Sedang';
   }
   return 'Ringan';

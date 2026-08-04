@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { ReportPayload, ReportStatus } from '../types/ecowarn';
+import { ReportPayload, ReportStatus, AreaType } from '../types/ecowarn';
 
 /**
  * Mendapatkan URL peladen secara dinamis agar terhubung dengan mulus di Emulator maupun Perangkat Fisik (Wi-Fi/LAN)
@@ -33,6 +33,7 @@ export interface ServerReportResponse {
     coordinates: [number, number]; // [longitude, latitude]
   };
   severity: 'Ringan' | 'Sedang' | 'Kritis';
+  areaType?: AreaType;
   status?: ReportStatus;
   photoUrl?: string;
   resolvedPhotoUrl?: string;

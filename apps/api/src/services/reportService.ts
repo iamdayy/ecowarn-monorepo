@@ -1,4 +1,4 @@
-import { Report, IReport, TrashVolumeStatus } from '../models/ReportSchema';
+import { Report, IReport, TrashVolumeStatus, AreaType } from '../models/ReportSchema';
 import { broadcastCriticalAlert, handleSpatialDeescalation } from './alertService';
 import { getSocketServer } from '../config/socket';
 import { uploadPhotoToFirebaseStorage } from './storageService';
@@ -13,6 +13,7 @@ export interface CreateReportPayload {
   latitude: number;
   severity: TrashVolumeStatus;
   photoUrl?: string;
+  areaType?: AreaType;
 }
 
 export interface SpatialQueryFilter {
@@ -23,7 +24,7 @@ export interface SpatialQueryFilter {
 
 export const createReportService = async (payload: CreateReportPayload): Promise<IReport> => {
   try {
-    const { reporterId, longitude, latitude, severity, photoUrl } = payload;
+    const { reporterId, longitude, latitude, severity, photoUrl, areaType } = payload;
 
     // Jika foto dikirim dalam format Base64 dan bucket Firebase Storage terisi di env, otomatis unggah ke Cloud Storage!
     let processedPhotoUrl = photoUrl;
@@ -38,6 +39,7 @@ export const createReportService = async (payload: CreateReportPayload): Promise
         coordinates: [longitude, latitude],
       },
       severity,
+      areaType,
       photoUrl: processedPhotoUrl,
     });
 

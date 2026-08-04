@@ -73,12 +73,12 @@ const ScannerActionFooterInner: React.FC<ScannerActionFooterProps> = ({
           <View style={styles.gpsChipContainer}>
             <Text style={styles.gpsChipText} numberOfLines={2}>
               {currentLocation.accuracy != null && currentLocation.accuracy <= 15
-                ? `🛰️ GPS AKURAT (±${Math.round(currentLocation.accuracy)}m)`
+                ? `GPS AKURAT (±${Math.round(currentLocation.accuracy)}m)`
                 : currentLocation.accuracy != null && currentLocation.accuracy <= 35
-                ? `📡 GPS MENENGAH (±${Math.round(currentLocation.accuracy)}m)`
-                : currentLocation.accuracy != null
-                ? `📡 SINYAL LEMAH (±${Math.round(currentLocation.accuracy)}m)`
-                : `📡 MENCARI SINYAL SATELIT...`}
+                  ? `GPS MENENGAH (±${Math.round(currentLocation.accuracy)}m)`
+                  : currentLocation.accuracy != null
+                    ? `SINYAL LEMAH (±${Math.round(currentLocation.accuracy)}m)`
+                    : `MENCARI SINYAL SATELIT...`}
               {` · ${address} (${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)})`}
             </Text>
           </View>
@@ -98,11 +98,11 @@ const ScannerActionFooterInner: React.FC<ScannerActionFooterProps> = ({
             {isReporting ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator size="small" color={EcoWarnColors.textOnPrimary} />
-                <Text style={styles.reportButtonText}>MENGIRIM...</Text>
+                <Text style={styles.reportButtonText}>MEMPROSES SCAN BUKTI...</Text>
               </View>
             ) : (
               <Text style={styles.reportButtonText}>
-                {`KIRIM PERINGATAN · ${severity.toUpperCase()}`}
+                {`Kirim · ${severity.toUpperCase()}`}
               </Text>
             )}
           </TouchableOpacity>
@@ -110,7 +110,7 @@ const ScannerActionFooterInner: React.FC<ScannerActionFooterProps> = ({
 
         <View style={styles.privacyCard}>
           <Text style={styles.privacyText}>
-            🔒 <Text style={styles.privacyBold}>Verifikasi Otentik:</Text> Foto &amp; koord. spasial tersematkan.
+            <Text style={styles.privacyBold}>Verifikasi Otentik:</Text> Foto &amp; koord. spasial tersematkan.
           </Text>
         </View>
       </View>

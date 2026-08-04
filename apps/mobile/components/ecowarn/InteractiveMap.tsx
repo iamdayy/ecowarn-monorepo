@@ -106,28 +106,28 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         {reports
           .filter((report) => !hideResolved || report.status !== 'RESOLVED')
           .map((report) => (
-          <React.Fragment key={report.id}>
-            <Marker
-              coordinate={{ latitude: report.latitude, longitude: report.longitude }}
-              title={report.status === 'RESOLVED' ? '✔️ ZONA STERIL - SELESAI' : `Status: ${report.severity}`}
-              description={report.status === 'RESOLVED' ? 'Telah dibersihkan & diverifikasi' : 'Klik untuk aksi toolbar aplikasi'}
-              pinColor={getMarkerColor(report.severity, report.status)}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setSelectedReport(report);
-              }}
-            />
-            {report.severity === 'Kritis' && report.status !== 'RESOLVED' && (
-              <Circle
-                center={{ latitude: report.latitude, longitude: report.longitude }}
-                radius={criticalZoneRadiusMeters}
-                strokeWidth={2}
-                strokeColor="rgba(255, 59, 48, 0.8)"
-                fillColor="rgba(255, 59, 48, 0.2)"
+            <React.Fragment key={report.id}>
+              <Marker
+                coordinate={{ latitude: report.latitude, longitude: report.longitude }}
+                title={report.status === 'RESOLVED' ? '✔️ ZONA STERIL - SELESAI' : `Status: ${report.severity}`}
+                description={report.status === 'RESOLVED' ? 'Telah dibersihkan & diverifikasi' : 'Klik untuk aksi toolbar aplikasi'}
+                pinColor={getMarkerColor(report.severity, report.status)}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelectedReport(report);
+                }}
               />
-            )}
-          </React.Fragment>
-        ))}
+              {report.severity === 'Kritis' && report.status !== 'RESOLVED' && (
+                <Circle
+                  center={{ latitude: report.latitude, longitude: report.longitude }}
+                  radius={criticalZoneRadiusMeters}
+                  strokeWidth={2}
+                  strokeColor="rgba(255, 59, 48, 0.8)"
+                  fillColor="rgba(255, 59, 48, 0.2)"
+                />
+              )}
+            </React.Fragment>
+          ))}
       </MapView>
 
       {/* Stack Kontrol FAB Spasial di Sisi Kanan Peta */}
@@ -228,7 +228,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         <View style={styles.appToolbarContainer}>
           <View style={styles.appToolbarHeader}>
             <Text style={styles.appToolbarTitle}>
-              📌 Titik Terpilih: <Text style={{ color: getMarkerColor(selectedReport.severity, selectedReport.status), fontWeight: '800' }}>{selectedReport.status === 'RESOLVED' ? 'STERIL / SELESAI' : selectedReport.severity}</Text>
+              Titik Terpilih: <Text style={{ color: getMarkerColor(selectedReport.severity, selectedReport.status), fontWeight: '800' }}>{selectedReport.status === 'RESOLVED' ? 'STERIL / SELESAI' : selectedReport.severity}</Text>
             </Text>
             <TouchableOpacity onPress={() => setSelectedReport(null)} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>✕</Text>
@@ -247,7 +247,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 setDetailModalVisible(true);
               }}
               activeOpacity={0.85}>
-              <Text style={styles.actionBtnDetailText}>📸 Lihat Detail & Bukti Foto</Text>
+              <Text style={styles.actionBtnDetailText}>Lihat Detail & Bukti Foto</Text>
             </TouchableOpacity>
 
             <View style={styles.actionBtnRow}>

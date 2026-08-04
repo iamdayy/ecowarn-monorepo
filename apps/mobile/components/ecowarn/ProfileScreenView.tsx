@@ -22,7 +22,7 @@ export const ProfileScreenView: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             await logout();
-            router.replace('/');
+            router.replace('/(auth)/login');
           },
         },
       ]
@@ -51,45 +51,45 @@ export const ProfileScreenView: React.FC = () => {
         contentContainerStyle={styles.content}
       >
         <View style={styles.header}>
-        <View style={[styles.avatarCircle, isRelawan ? styles.avatarRelawan : styles.avatarWarga]}>
-          <Text style={styles.avatarIcon}>{isRelawan ? '🛡️' : '👤'}</Text>
-        </View>
-        <Text style={styles.nameText}>{user.name}</Text>
-        <View style={[styles.roleBadge, isRelawan ? styles.badgeRelawan : styles.badgeWarga]}>
-          <Text style={[styles.roleText, isRelawan ? styles.roleRelawan : styles.roleWarga]}>
-            {user.role}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.infoCard}>
-        <Text style={styles.sectionTitle}>Informasi Akun</Text>
-        
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Email</Text>
-          <Text style={styles.infoValue}>{user.email}</Text>
+          <View style={[styles.avatarCircle, isRelawan ? styles.avatarRelawan : styles.avatarWarga]}>
+            <Text style={styles.avatarIcon}>{isRelawan ? '🛡️' : '👤'}</Text>
+          </View>
+          <Text style={styles.nameText}>{user.name}</Text>
+          <View style={[styles.roleBadge, isRelawan ? styles.badgeRelawan : styles.badgeWarga]}>
+            <Text style={[styles.roleText, isRelawan ? styles.roleRelawan : styles.roleWarga]}>
+              {user.role}
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.divider} />
+        <View style={styles.infoCard}>
+          <Text style={styles.sectionTitle}>Informasi Akun</Text>
 
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Nomor Handphone</Text>
-          <Text style={styles.infoValue}>{user.phoneNumber}</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Email</Text>
+            <Text style={styles.infoValue}>{user.email}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Nomor Handphone</Text>
+            <Text style={styles.infoValue}>{user.phoneNumber}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Status Otorisasi</Text>
+            <Text style={styles.infoValue}>
+              {isRelawan ? 'Akses Pemindai AI & Riwayat' : 'Pemantauan & Peringatan Dini'}
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.divider} />
-
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Status Otorisasi (RBAC)</Text>
-          <Text style={styles.infoValue}>
-            {isRelawan ? 'Akses Pemindai AI & Riwayat' : 'Pemantauan Spasial & Peringatan Dini'}
-          </Text>
-        </View>
-      </View>
-
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
-        <Text style={styles.logoutButtonText}>🚪 Keluar dari Akun (Logout)</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
+          <Text style={styles.logoutButtonText}>🚪 Keluar dari Akun (Logout)</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
